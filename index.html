@@ -397,9 +397,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <span class="rec-txt">REC <span id="ov-rec-time">0:00</span></span>
       </div>
       <div class="ov-bot">
-        <button class="cbtn cbtn-sm" onclick="closeCamera()">✕</button>
-        <button class="cbtn cbtn-rec" id="btn-rec" onclick="toggleRec()">⏺</button>
-        <button class="cbtn cbtn-sm" onclick="flipCamera()">🔄</button>
+        <button class="cbtn cbtn-sm" id="btn-close-cam">✕</button>
+        <button class="cbtn cbtn-rec" id="btn-rec">⏺</button>
+        <button class="cbtn cbtn-sm" id="btn-flip-cam">🔄</button>
       </div>
     </div>
   </div>
@@ -772,24 +772,37 @@ function renderEv() {
 }
 
 // ── MÓDULO DE CÁMARA Y GRABACIÓN ──────────────────────────────
-let camStream = null;
-let mediaRec = null;
-let recChunks = [];
-let recTimer = null;
-let recSecs = 0;
-let isRecording = false;
-let currentCamCpId = null;
-let camFacing = 'environment';
-let dtTimer = null;
+// Variables en window para que onclick funcione fuera del módulo
+window.camStream = null;
+window.mediaRec = null;
+window.recChunks = [];
+window.recTimer = null;
+window.recSecs = 0;
+window.isRecording = false;
+window.currentCamCpId = null;
+window.camFacing = 'environment';
+window.dtTimer = null;
 
 // Abrir cámara para un punto específico
 window.openCamera = function(cpId) {
-  currentCamCpId = cpId;
+  window.currentCamCpId = cpId;
   isRecording = false;
   recChunks = [];
   const cp = CPS.find(c => c.id === cpId);
   const modal = document.getElementById('cam-modal');
   modal.classList.add('open');
+  // Attach button events each time modal opens (touchstart for mobile)
+  const btnRec = document.getElementById('btn-rec');
+  const btnClose = document.getElementById('btn-close-cam');
+  const btnFlip = document.getElementById('btn-flip-cam');
+  function addTapHandler(el, fn) {
+    if (!el) return;
+    el.ontouchstart = function(e) { e.preventDefault(); e.stopPropagation(); fn(); };
+    el.onclick = fn;
+  }
+  addTapHandler(btnRec, window.toggleRec);
+  addTapHandler(btnClose, window.closeCamera);
+  addTapHandler(btnFlip, window.flipCamera);
   // Overlay info
   const pt = document.getElementById('ov-point');
   const cl = document.getElementById('ov-client');
@@ -808,12 +821,12 @@ window.openCamera = function(cpId) {
 
 // Cerrar cámara — detiene grabación si está activa
 window.closeCamera = function() {
-  if (isRecording) {
+  if (window.isRecording) {
     stopGrabacion(false); // descartar sin guardar
   }
-  clearInterval(dtTimer);
-  if (camStream) {
-    camStream.getTracks().forEach(t => t.stop());
+  clearInterval(window.dtTimer);
+  if (window.camStream) {
+    window.camStream.getTracks().forEach(t => t.stop());
     camStream = null;
   }
   const vid = document.getElementById('cam-video');
@@ -823,23 +836,23 @@ window.closeCamera = function() {
 
 // Voltear cámara frontal/trasera
 window.flipCamera = function() {
-  camFacing = camFacing === 'environment' ? 'user' : 'environment';
+  camFacing = window.camFacing === 'environment' ? 'user' : 'environment';
   startStream();
 };
 
 // Iniciar stream de video
 function startStream() {
-  if (camStream) {
-    camStream.getTracks().forEach(t => t.stop());
+  if (window.camStream) {
+    window.camStream.getTracks().forEach(t => t.stop());
     camStream = null;
   }
   const constraints = {
-    video: { facingMode: camFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
+    video: { facingMode: window.camFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
     audio: true
   };
   navigator.mediaDevices.getUserMedia(constraints)
     .then(stream => {
-      camStream = stream;
+      window.camStream = stream;
       const vid = document.getElementById('cam-video');
       if (vid) { vid.srcObject = stream; vid.play().catch(()=>{}); }
     })
@@ -851,19 +864,19 @@ function startStream() {
 
 // Reloj en tiempo real sobre el video
 function startDtTimer() {
-  clearInterval(dtTimer);
+  clearInterval(window.dtTimer);
   function tick() {
     const now = new Date();
     const el = document.getElementById('ov-datetime');
     if (el) el.textContent = now.toLocaleDateString('es-MX', {day:'2-digit',month:'2-digit',year:'numeric'}) + '  ' + now.toLocaleTimeString('es-MX');
   }
   tick();
-  dtTimer = setInterval(tick, 1000);
+  window.dtTimer = setInterval(tick, 1000);
 }
 
 // Botón grande rojo — toggle grabar/detener
 window.toggleRec = function() {
-  if (!isRecording) {
+  if (!window.isRecording) {
     iniciarGrabacion();
   } else {
     detenerYGuardar();
@@ -898,25 +911,25 @@ function resetRecBtn() {
 
 // INICIAR grabación
 function iniciarGrabacion() {
-  if (!camStream) { showToast('Espera a que la cámara inicie'); return; }
-  if (isRecording) return;
+  if (!window.camStream) { showToast('Espera a que la cámara inicie'); return; }
+  if (window.isRecording) return;
   recChunks = [];
   recSecs = 0;
   const mimeType = getMimeType();
   try {
     const opts = mimeType ? { mimeType } : {};
-    mediaRec = new MediaRecorder(camStream, opts);
+    window.mediaRec = new MediaRecorder(camStream, opts);
   } catch(e) {
-    try { mediaRec = new MediaRecorder(camStream); }
+    try { window.mediaRec = new MediaRecorder(camStream); }
     catch(e2) { showToast('Este dispositivo no soporta grabación de video'); return; }
   }
-  mediaRec.ondataavailable = e => {
-    if (e.data && e.data.size > 0) recChunks.push(e.data);
+  window.mediaRec.ondataavailable = e => {
+    if (e.data && e.data.size > 0) window.recChunks.push(e.data);
   };
-  mediaRec.onstop = procesarVideo;
-  mediaRec.onerror = () => { showToast('Error durante la grabación'); resetGrabacion(); };
-  mediaRec.start(1000); // chunk cada segundo
-  isRecording = true;
+  window.mediaRec.onstop = procesarVideo;
+  window.mediaRec.onerror = () => { showToast('Error durante la grabación'); resetGrabacion(); };
+  window.mediaRec.start(1000); // chunk cada segundo
+  window.isRecording = true;
   // UI: botón cambia a STOP
   const btn = document.getElementById('btn-rec');
   if (btn) {
@@ -927,9 +940,9 @@ function iniciarGrabacion() {
   // Mostrar badge REC con contador
   const badge = document.getElementById('ov-rec');
   if (badge) badge.style.display = 'flex';
-  recTimer = setInterval(() => {
-    recSecs++;
-    const m = Math.floor(recSecs / 60);
+  window.recTimer = setInterval(() => {
+    window.recSecs++;
+    const m = Math.floor(window.recSecs / 60);
     const s = recSecs % 60;
     const el = document.getElementById('ov-rec-time');
     if (el) el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
@@ -939,16 +952,16 @@ function iniciarGrabacion() {
 
 // DETENER y guardar
 function detenerYGuardar() {
-  if (!isRecording) return;
-  clearInterval(recTimer);
+  if (!window.isRecording) return;
+  clearInterval(window.recTimer);
   isRecording = false;
   // Ocultar badge REC
   const badge = document.getElementById('ov-rec');
   if (badge) badge.style.display = 'none';
   resetRecBtn();
   showToast('⏳ Procesando video...');
-  if (mediaRec && mediaRec.state !== 'inactive') {
-    mediaRec.stop(); // dispara onstop → procesarVideo
+  if (window.mediaRec && window.mediaRec.state !== 'inactive') {
+    window.mediaRec.stop(); // dispara onstop → procesarVideo
   } else {
     procesarVideo();
   }
@@ -956,7 +969,7 @@ function detenerYGuardar() {
 
 // DESCARTAR sin guardar
 function resetGrabacion() {
-  clearInterval(recTimer);
+  clearInterval(window.recTimer);
   isRecording = false;
   recChunks = [];
   resetRecBtn();
@@ -966,31 +979,31 @@ function resetGrabacion() {
 
 // Parar grabación SIN guardar (al cerrar)
 function stopGrabacion(save) {
-  clearInterval(recTimer);
+  clearInterval(window.recTimer);
   isRecording = false;
   const badge = document.getElementById('ov-rec');
   if (badge) badge.style.display = 'none';
   resetRecBtn();
-  if (mediaRec && mediaRec.state !== 'inactive') {
+  if (window.mediaRec && window.mediaRec.state !== 'inactive') {
     if (!save) {
-      mediaRec.ondataavailable = () => {};
-      mediaRec.onstop = () => {};
+      window.mediaRec.ondataavailable = () => {};
+      window.mediaRec.onstop = () => {};
     }
-    mediaRec.stop();
+    window.mediaRec.stop();
   }
 }
 
 // Procesar y descargar el video grabado
 function procesarVideo() {
-  if (!recChunks || recChunks.length === 0) {
+  if (!window.recChunks || window.recChunks.length === 0) {
     showToast('No se capturaron datos de video');
     return;
   }
-  const mimeType = (mediaRec && mediaRec.mimeType) ? mediaRec.mimeType : 'video/webm';
+  const mimeType = (window.mediaRec && window.mediaRec.mimeType) ? window.mediaRec.mimeType : 'video/webm';
   const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
   const blob = new Blob(recChunks, { type: mimeType });
   const ahora = new Date();
-  const cpNombre = CPS.find(c => c.id === currentCamCpId)?.name || currentCamCpId;
+  const cpNombre = CPS.find(c => c.id === window.currentCamCpId)?.name || currentCamCpId;
   const fname = 'GSPN_' + currentCamCpId + '_' + ahora.toISOString().slice(0,19).replace(/[:.]/g,'-') + '.' + ext;
   // Intentar descarga
   const url = URL.createObjectURL(blob);
@@ -1017,7 +1030,7 @@ function procesarVideo() {
   const etiqueta = ahora.toLocaleString('es-MX') + ' — ' + cpNombre;
   videoLists[currentCamCpId].push(etiqueta);
   // Actualizar UI si la lista está visible
-  const vl = document.getElementById('vl-' + currentCamCpId);
+  const vl = document.getElementById('vl-' + window.currentCamCpId);
   if (vl) {
     const d = document.createElement('div');
     d.className = 'vid-item';
