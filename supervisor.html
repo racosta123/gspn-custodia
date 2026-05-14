@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0a1628">
+<title>GSPN — Dashboard Supervisor</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--navy:#0a1628;--navy2:#0d1e35;--gold:#c8a84b;--green:#2e7d32;--red:#c62828;--bg:#0e1a2e;--card:rgba(255,255,255,.04);--border:rgba(255,255,255,.08);--txt:#e8e4dc;--txt2:rgba(232,228,220,.6);--txt3:rgba(232,228,220,.35)}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh}
+
+/* LOGIN */
+.login{min-height:100vh;background:var(--navy);display:flex;align-items:center;justify-content:center;padding:30px}
+.login-box{width:100%;max-width:360px;text-align:center}
+.login-logo{background:#fff;border-radius:10px;padding:8px 18px;display:inline-block;margin-bottom:16px}
+.login-logo-t{font-size:28px;font-weight:800;color:var(--navy);letter-spacing:2px}
+.login-logo-s{font-size:8px;color:#555;letter-spacing:.5px}
+.login-title{color:var(--gold);font-size:13px;font-weight:600;margin-bottom:20px;letter-spacing:.5px}
+.login-inp{width:100%;padding:12px 14px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:rgba(255,255,255,.06);color:#fff;font-size:14px;margin-bottom:10px}
+.login-inp::placeholder{color:rgba(255,255,255,.3)}
+.login-btn{width:100%;padding:13px;background:var(--gold);color:var(--navy);border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer}
+.login-err{color:#ef9a9a;font-size:12px;margin-top:8px;min-height:18px}
+
+/* HEADER */
+.hdr{background:rgba(0,0,0,.4);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100;backdrop-filter:blur(10px)}
+.hdr-logo{background:#fff;border-radius:6px;padding:3px 10px}
+.hdr-logo-t{font-size:16px;font-weight:800;color:var(--navy);letter-spacing:1px}
+.hdr-logo-s{font-size:6px;color:#555;letter-spacing:.3px}
+.hdr-title{flex:1;color:#fff;font-size:14px;font-weight:600}
+.hdr-right{display:flex;align-items:center;gap:12px}
+.hdr-clock{font-family:monospace;font-size:13px;color:var(--gold)}
+.hdr-status{display:flex;align-items:center;gap:5px;font-size:11px;color:#00c853}
+.hdr-status::before{content:'';width:6px;height:6px;border-radius:50%;background:#00c853;animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.hdr-logout{background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--txt2);font-size:11px;padding:5px 12px;border-radius:6px;cursor:pointer}
+
+/* STATS */
+.stats-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px 20px;border-bottom:1px solid var(--border)}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 16px;text-align:center}
+.stat-n{font-size:28px;font-weight:700;line-height:1}
+.stat-l{font-size:11px;color:var(--txt2);margin-top:4px}
+
+/* MAIN */
+.main{display:grid;grid-template-columns:1fr 340px;gap:0;height:calc(100vh - 130px)}
+
+/* VIAJES */
+.viajes-panel{padding:16px 20px;overflow-y:auto;border-right:1px solid var(--border)}
+.panel-title{font-size:11px;font-weight:600;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.viaje-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;cursor:pointer;transition:border-color .2s}
+.viaje-card:hover{border-color:rgba(200,168,75,.3)}
+.viaje-card.selected{border-color:var(--gold);background:rgba(200,168,75,.05)}
+.viaje-hd{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.viaje-icon{width:34px;height:34px;background:var(--navy);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;border:1px solid rgba(200,168,75,.2)}
+.viaje-guia{font-size:14px;font-weight:600;color:var(--txt)}
+.viaje-meta{font-size:10px;color:var(--txt2);margin-top:1px}
+.viaje-cust{font-size:10px;color:var(--txt2);margin-left:auto;text-align:right}
+.prog-wrap{background:rgba(255,255,255,.06);border-radius:4px;height:4px;margin-bottom:8px}
+.prog-fill{height:4px;border-radius:4px;background:var(--gold);transition:width .5s}
+.cp-dots{display:flex;gap:4px}
+.cpd{flex:1;height:20px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;border:1px solid transparent}
+.cpd-p{background:rgba(255,255,255,.04);color:var(--txt3);border-color:var(--border)}
+.cpd-v{background:rgba(46,125,50,.15);color:#66bb6a;border-color:rgba(46,125,50,.3)}
+.cpd-r{background:rgba(198,40,40,.15);color:#ef5350;border-color:rgba(198,40,40,.3)}
+.cpd-a{background:rgba(200,168,75,.1);color:var(--gold);border-color:rgba(200,168,75,.2)}
+
+/* DETAIL PANEL */
+.detail-panel{padding:16px;overflow-y:auto}
+.detail-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--txt3);text-align:center;gap:8px}
+.detail-empty-icon{font-size:36px}
+.detail-title{font-size:14px;font-weight:600;color:var(--txt);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.det-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px}
+.det-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px}
+.det-row:last-child{border-bottom:none}
+.det-l{color:var(--txt2)}
+.det-v{color:var(--txt);font-weight:500;text-align:right;max-width:55%}
+.det-cp{margin-bottom:8px;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:8px}
+.det-cp-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.det-cp-name{font-size:12px;font-weight:600;color:var(--txt)}
+.det-cp-st{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.st-v{background:rgba(46,125,50,.2);color:#66bb6a}
+.st-r{background:rgba(198,40,40,.2);color:#ef5350}
+.st-p{background:rgba(255,255,255,.06);color:var(--txt3)}
+.det-cp-info{font-size:10px;color:var(--txt2);line-height:1.6}
+.rojo-badge{background:rgba(198,40,40,.15);border:1px solid rgba(198,40,40,.3);border-radius:6px;padding:6px 10px;font-size:10px;color:#ef5350;margin-top:6px;line-height:1.5}
+.vid-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt2);padding:4px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+
+/* STATUS BADGE */
+.status-badge{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.sb-activo{background:rgba(200,168,75,.15);color:var(--gold)}
+.sb-completado{background:rgba(46,125,50,.15);color:#66bb6a}
+
+/* LOADING */
+.loading{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:10px}
+.spinner{width:32px;height:32px;border:3px solid rgba(200,168,75,.2);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-txt{color:var(--txt2);font-size:12px}
+
+/* NO VIAJES */
+.no-viajes{text-align:center;padding:40px;color:var(--txt3);font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">
+  <div style="background:#fff;border-radius:8px;padding:5px 14px;text-align:center;margin-bottom:8px">
+    <div style="font-size:22px;font-weight:800;color:#0a1628;letter-spacing:2px">GSPN</div>
+    <div style="font-size:7px;color:#555">GRUPO DE SEGURIDAD PRIVADA DEL NOROESTE</div>
+  </div>
+  <div class="spinner"></div>
+  <div class="loading-txt">Cargando dashboard...</div>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen" style="display:none">
+  <div class="login">
+    <div class="login-box">
+      <div class="login-logo">
+        <div class="login-logo-t">GSPN</div>
+        <div class="login-logo-s">GRUPO DE SEGURIDAD PRIVADA DEL NOROESTE</div>
+      </div>
+      <div class="login-title">DASHBOARD SUPERVISOR</div>
+      <input class="login-inp" type="email" id="login-email" placeholder="Correo electrónico">
+      <input class="login-inp" type="password" id="login-pass" placeholder="Contraseña">
+      <button class="login-btn" onclick="doLogin()">INGRESAR</button>
+      <div class="login-err" id="login-err"></div>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dash-screen" style="display:none">
+  <div class="hdr">
+    <div class="hdr-logo">
+      <div class="hdr-logo-t">GSPN</div>
+      <div class="hdr-logo-s">GRUPO DE SEG. PRIVADA DEL NOROESTE</div>
+    </div>
+    <div class="hdr-title">Dashboard Supervisor — Monitoreo en tiempo real</div>
+    <div class="hdr-right">
+      <div class="hdr-status">EN VIVO</div>
+      <div class="hdr-clock" id="clock">00:00:00</div>
+      <button class="hdr-logout" onclick="doLogout()">Salir</button>
+    </div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat"><div class="stat-n" id="st-activos" style="color:var(--gold)">0</div><div class="stat-l">Viajes activos</div></div>
+    <div class="stat"><div class="stat-n" id="st-verdes" style="color:#66bb6a">0</div><div class="stat-l">Puntos verdes hoy</div></div>
+    <div class="stat"><div class="stat-n" id="st-rojos" style="color:#ef5350">0</div><div class="stat-l">Semáforos rojos</div></div>
+    <div class="stat"><div class="stat-n" id="st-completados" style="color:#42a5f5">0</div><div class="stat-l">Completados hoy</div></div>
+  </div>
+
+  <div class="main">
+    <div class="viajes-panel">
+      <div class="panel-title">
+        <span>Viajes en curso</span>
+        <span id="viajes-count" style="color:var(--gold)">—</span>
+      </div>
+      <div id="viajes-list"><div class="no-viajes">Cargando viajes...</div></div>
+    </div>
+    <div class="detail-panel" id="detail-panel">
+      <div class="detail-empty">
+        <div class="detail-empty-icon">🚚</div>
+        <p style="font-size:13px">Selecciona un viaje<br>para ver el detalle</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD-740tRu17a8Q8jGz1TxUbt3Xs9CtKViA",
+  authDomain: "gspn-custodia.firebaseapp.com",
+  projectId: "gspn-custodia",
+  storageBucket: "gspn-custodia.firebasestorage.app",
+  messagingSenderId: "947997031571",
+  appId: "1:947997031571:web:9bf4b63f46b60544312166"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const CPS = [
+  {id:'desengano', name:'Desengaño', num:1},
+  {id:'querobabi', name:'Querobabi', num:2},
+  {id:'sonoita', name:'Sonoita', num:3},
+  {id:'centinela', name:'Centinela', num:4}
+];
+
+let allViajes = [];
+let selectedViajeId = null;
+let unsubViajes = null;
+
+// CLOCK
+setInterval(() => {
+  const now = new Date();
+  const el = document.getElementById('clock');
+  if (el) el.textContent = now.toLocaleTimeString('es-MX');
+}, 1000);
+
+// AUTH
+onAuthStateChanged(auth, user => {
+  document.getElementById('loading').style.display = 'none';
+  if (user) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('dash-screen').style.display = 'block';
+    startListening();
+  } else {
+    if (unsubViajes) unsubViajes();
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('dash-screen').style.display = 'none';
+  }
+});
+
+window.doLogin = async function() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const err = document.getElementById('login-err');
+  err.textContent = '';
+  try {
+    document.querySelector('.login-btn').textContent = 'Ingresando...';
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch(e) {
+    document.querySelector('.login-btn').textContent = 'INGRESAR';
+    err.textContent = 'Email o contraseña incorrectos';
+  }
+};
+
+window.doLogout = async function() {
+  if (unsubViajes) unsubViajes();
+  await signOut(auth);
+};
+
+function startListening() {
+  const q = query(collection(db, 'viajes'), orderBy('creadoEn', 'desc'));
+  unsubViajes = onSnapshot(q, snap => {
+    allViajes = snap.docs.map(d => ({id:d.id, ...d.data()}));
+    renderViajes();
+    updateStats();
+    if (selectedViajeId) {
+      const v = allViajes.find(v => v.id===selectedViajeId);
+      if (v) renderDetail(v);
+    }
+  });
+}
+
+function updateStats() {
+  const activos = allViajes.filter(v => v.status==='activo').length;
+  const completados = allViajes.filter(v => v.status==='completado').length;
+  let verdes=0, rojos=0;
+  allViajes.forEach(v => {
+    const cps = v.checkpoints||{};
+    CPS.forEach(cp => {
+      if (cps[cp.id]?.completado) {
+        if (cps[cp.id].semaforo==='rojo') rojos++;
+        else verdes++;
+      }
+    });
+  });
+  document.getElementById('st-activos').textContent = activos;
+  document.getElementById('st-verdes').textContent = verdes;
+  document.getElementById('st-rojos').textContent = rojos;
+  document.getElementById('st-completados').textContent = completados;
+}
+
+function renderViajes() {
+  const cont = document.getElementById('viajes-list');
+  const activos = allViajes.filter(v => v.status==='activo');
+  const completados = allViajes.filter(v => v.status==='completado');
+  document.getElementById('viajes-count').textContent = activos.length + ' activos';
+
+  if (!allViajes.length) {
+    cont.innerHTML = '<div class="no-viajes">No hay viajes registrados aún.</div>';
+    return;
+  }
+
+  let h = '';
+  if (activos.length) {
+    h += '<div style="font-size:10px;font-weight:600;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Activos</div>';
+    activos.forEach(v => h += viajeCardHTML(v));
+  }
+  if (completados.length) {
+    h += '<div style="font-size:10px;font-weight:600;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px">Completados hoy</div>';
+    completados.forEach(v => h += viajeCardHTML(v));
+  }
+  cont.innerHTML = h;
+}
+
+function viajeCardHTML(v) {
+  const cps = v.checkpoints||{};
+  const done = Object.values(cps).filter(c=>c.completado).length;
+  const isSelected = v.id===selectedViajeId;
+  const hasRojo = Object.values(cps).some(c=>c.semaforo==='rojo');
+  let dots = CPS.map(cp => {
+    const c = cps[cp.id];
+    if (!c?.completado) return `<div class="cpd cpd-${v.puntoActual===cp.id?'a':'p'}">${cp.name.slice(0,4)}</div>`;
+    return `<div class="cpd cpd-${c.semaforo==='rojo'?'r':'v'}">${cp.name.slice(0,4)} ${c.semaforo==='rojo'?'🔴':'✔'}</div>`;
+  }).join('');
+  return `<div class="viaje-card${isSelected?' selected':''}" onclick="selectViaje('${v.id}')">
+    <div class="viaje-hd">
+      <div class="viaje-icon">${hasRojo?'⚠️':'🚚'}</div>
+      <div>
+        <div class="viaje-guia">${v.guia||'—'}</div>
+        <div class="viaje-meta">${v.cliente||'—'} • ${v.placas||'—'}</div>
+      </div>
+      <div class="viaje-cust">
+        <span class="status-badge ${v.status==='completado'?'sb-completado':'sb-activo'}">${v.status==='completado'?'Completado':'Activo'}</span><br>
+        <span style="font-size:9px;color:var(--txt3)">${done}/4 puntos</span>
+      </div>
+    </div>
+    <div class="prog-wrap"><div class="prog-fill" style="width:${done/4*100}%"></div></div>
+    <div class="cp-dots">${dots}</div>
+  </div>`;
+}
+
+window.selectViaje = function(id) {
+  selectedViajeId = id;
+  const v = allViajes.find(v=>v.id===id);
+  if (v) { renderViajes(); renderDetail(v); }
+};
+
+function renderDetail(v) {
+  const cps = v.checkpoints||{};
+  const done = Object.values(cps).filter(c=>c.completado).length;
+  let h = `<div class="detail-title">🚚 ${v.guia} — ${v.cliente}</div>`;
+  h += `<div class="det-card">
+    <div class="det-row"><span class="det-l">Operador</span><span class="det-v">${v.operador||'—'}</span></div>
+    <div class="det-row"><span class="det-l">Placas</span><span class="det-v">${v.placas||'—'}</span></div>
+    <div class="det-row"><span class="det-l">Unidad</span><span class="det-v">${v.unidad||'—'}</span></div>
+    <div class="det-row"><span class="det-l">Sello</span><span class="det-v">${v.sello||'—'}</span></div>
+    <div class="det-row"><span class="det-l">Candado</span><span class="det-v">${v.candado||'—'}</span></div>
+    <div class="det-row"><span class="det-l">Custodio inicial</span><span class="det-v">${v.custodioInicial||'—'}</span></div>
+    <div class="det-row"><span class="det-l">Hora salida</span><span class="det-v">${v.horaSalida||'—'}</span></div>
+    <div class="det-row"><span class="det-l">Progreso</span><span class="det-v">${done}/4 puntos</span></div>
+  </div>`;
+  h += `<div style="font-size:11px;font-weight:600;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Puntos de revisión</div>`;
+  CPS.forEach(cp => {
+    const c = cps[cp.id];
+    const isDone = c?.completado;
+    const sem = c?.semaforo;
+    const stC = isDone?(sem==='rojo'?'st-r':'st-v'):'st-p';
+    const stT = isDone?(sem==='rojo'?'🔴 Rojo':'🟢 Verde'):'⏳ Pendiente';
+    h += `<div class="det-cp">
+      <div class="det-cp-hd">
+        <div class="det-cp-name">${cp.num}. ${CPS.find(x=>x.id===cp.id)?.name||cp.id}</div>
+        <span class="det-cp-st ${stC}">${stT}</span>
+      </div>`;
+    if (isDone) {
+      h += `<div class="det-cp-info">`;
+      if (c.hora) h += `🕐 Llegada: ${c.hora}<br>`;
+      if (c.custodio) h += `👤 Custodio: ${c.custodio}<br>`;
+      if (c.obs) h += `📝 ${c.obs}<br>`;
+      if ((c.videos||[]).length) { h += `📹 ${c.videos.length} video(s) grabado(s)<br>`; c.videos.forEach(vv => { h += `<div class="vid-item">📹 ${vv}</div>`; }); }
+      h += '</div>';
+      if (sem==='rojo') h += `<div class="rojo-badge">⚠️ Revisión exhaustiva realizada — Evidencia en video disponible</div>`;
+    }
+    h += '</div>';
+  });
+  document.getElementById('detail-panel').innerHTML = h;
+}
+
+document.addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+</script>
+</body>
+</html>

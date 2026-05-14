@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a1628">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GSPN Custodia">
+<title>GSPN Custodia</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--navy:#0a1628;--navy2:#0d1e35;--gold:#c8a84b;--green:#2e7d32;--green-bg:#e8f5e9;--green-bd:#a5d6a7;--red:#c62828;--red-bg:#fce8e8;--red-bd:#ef9a9a;--bg:#f4f4f2;--card:#fff;--border:#e0ddd5;--txt:#1a1a1a;--txt2:#666;--txt3:#999;--radius:12px;--radius-sm:8px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;max-width:480px;margin:0 auto}
+
+/* LOGIN */
+.login-screen{min-height:100vh;background:var(--navy);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 24px}
+.login-logo{background:#fff;border-radius:10px;padding:8px 16px;margin-bottom:20px;text-align:center}
+.login-logo-t{font-size:28px;font-weight:800;color:var(--navy);letter-spacing:2px}
+.login-logo-s{font-size:8px;color:#555;letter-spacing:.5px;line-height:1.3}
+.login-title{color:var(--gold);font-size:14px;font-weight:600;margin-bottom:6px;letter-spacing:.5px}
+.login-sub{color:rgba(255,255,255,.4);font-size:12px;margin-bottom:28px;text-align:center}
+.login-form{width:100%;max-width:320px}
+.login-inp{width:100%;padding:12px 14px;border:1px solid rgba(255,255,255,.1);border-radius:var(--radius-sm);background:rgba(255,255,255,.06);color:#fff;font-size:14px;margin-bottom:10px;outline:none}
+.login-inp:focus{border-color:var(--gold)}
+.login-inp::placeholder{color:rgba(255,255,255,.3)}
+.login-btn{width:100%;padding:13px;background:var(--gold);color:var(--navy);border:none;border-radius:var(--radius-sm);font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;letter-spacing:.5px}
+.login-err{color:#ef9a9a;font-size:12px;text-align:center;margin-top:8px;min-height:18px}
+.login-loading{color:rgba(255,255,255,.5);font-size:12px;text-align:center;margin-top:8px}
+
+/* HEADER */
+.hdr{background:var(--navy);padding:12px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100}
+.hdr-logo{background:#fff;border-radius:6px;padding:3px 10px}
+.hdr-logo-t{font-size:16px;font-weight:800;color:var(--navy);letter-spacing:1px}
+.hdr-logo-s{font-size:6px;color:#555;letter-spacing:.3px;line-height:1.3}
+.hdr-info{flex:1}
+.hdr-title{color:#fff;font-size:13px;font-weight:600}
+.hdr-sub{color:var(--gold);font-size:10px;margin-top:1px}
+.client-pill{display:inline-block;background:var(--gold);color:var(--navy);font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px;margin-top:3px}
+.hdr-logout{background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer}
+
+/* ROUTE BAR */
+.route{background:#0d1e35;padding:8px 16px;display:flex;align-items:center}
+.rs{display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0}
+.rd{width:10px;height:10px;border-radius:50%;transition:all .3s}
+.rd.done{background:var(--green)}
+.rd.active{background:var(--gold);box-shadow:0 0 0 3px rgba(200,168,75,.25)}
+.rd.pend{background:#2a3a50}
+.rn{font-size:8px;color:#556;white-space:nowrap}
+.rl{flex:1;height:1px;background:#1e3050;min-width:10px;margin-bottom:10px}
+
+/* TABS */
+.tabs{display:flex;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:60px;z-index:99}
+.tab{flex:1;padding:8px 2px;text-align:center;font-size:10px;color:var(--txt2);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;user-select:none}
+.tab svg{display:block;margin:0 auto 2px;width:18px;height:18px}
+.tab.active{color:var(--navy);border-bottom-color:var(--gold);font-weight:600}
+
+/* CONTENT */
+.content{padding:14px;padding-bottom:80px}
+.sec-title{font-size:10px;font-weight:600;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+
+/* CLIENT SELECTOR */
+.cl-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.cl-btn{padding:10px 6px;border-radius:10px;border:1.5px solid var(--border);background:#fff;cursor:pointer;text-align:center;transition:all .2s}
+.cl-btn.active{border-color:var(--gold);background:#fffbef}
+.cl-logo{font-size:12px;font-weight:800}
+.cl-name{font-size:9px;color:var(--txt2);margin-top:2px}
+
+/* FIELDS */
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.f{display:flex;flex-direction:column;gap:3px}
+.f.full{grid-column:1/-1}
+.f label{font-size:11px;color:var(--txt2);font-weight:500}
+.f input,.f select,.f textarea{padding:9px 11px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:#fff;color:var(--txt);width:100%}
+.f input:focus,.f select:focus{outline:none;border-color:var(--gold)}
+
+/* BUTTONS */
+.btn-p{width:100%;padding:13px;background:var(--navy);color:var(--gold);border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px}
+.btn-sm{padding:5px 12px;border-radius:6px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:#f8f8f6;color:var(--txt2);transition:all .15s}
+.btn-sm.ok{background:var(--green-bg);color:var(--green);border-color:var(--green-bd)}
+.btn-sm.fail{background:var(--red-bg);color:var(--red);border-color:var(--red-bd)}
+
+/* CHECKPOINTS */
+.cp{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden}
+.cp-hd{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;user-select:none}
+.cp-num{width:28px;height:28px;border-radius:50%;background:var(--navy);color:var(--gold);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cp-info{flex:1}
+.cp-name{font-size:13px;font-weight:600;color:var(--txt)}
+.cp-loc{font-size:10px;color:var(--txt2);margin-top:1px}
+.cp-st{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;white-space:nowrap}
+.st-p{background:#f0f0ee;color:var(--txt3)}
+.st-v{background:var(--green-bg);color:var(--green)}
+.st-r{background:var(--red-bg);color:var(--red)}
+.st-lock{background:#e3f2fd;color:#1565c0}
+.cp-bd{display:none;padding:0 14px 14px;border-top:1px solid var(--border)}
+.cp-bd.open{display:block}
+
+/* CHECKLIST */
+.chk{margin:10px 0}
+.ci{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f0f0ee}
+.ci:last-child{border-bottom:none}
+.ci-icon{font-size:16px;flex-shrink:0}
+.ci label{font-size:13px;color:var(--txt);flex:1;line-height:1.3}
+.ci-btns{display:flex;gap:5px;flex-shrink:0}
+
+/* SEMAFORO */
+.sem-row{display:flex;gap:8px;margin:10px 0}
+.sem{flex:1;padding:10px 6px;border-radius:10px;font-size:11px;font-weight:600;cursor:pointer;border:2px solid transparent;text-align:center;transition:all .2s}
+.sem-v{background:#f1f8e9;color:#33691e;border-color:#aed581}
+.sem-v.on{background:#33691e;color:#fff}
+.sem-r{background:#fff8f8;color:#b71c1c;border-color:var(--red-bd)}
+.sem-r.on{background:#b71c1c;color:#fff}
+.rojo-alert{display:none;background:#fff3f3;border:1px solid var(--red-bd);border-radius:var(--radius-sm);padding:10px;margin:6px 0}
+.rojo-alert p{font-size:11px;color:var(--red);line-height:1.5}
+.rojo-alert p:first-child{font-weight:600;margin-bottom:3px}
+
+/* VIDEO */
+.vid-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden}
+.vid-hd{padding:12px 14px;border-bottom:1px solid #f0f0ee;display:flex;align-items:center;gap:8px}
+.vid-hd span{font-size:13px;font-weight:600;color:var(--txt);flex:1}
+.vid-cnt{background:var(--navy);color:var(--gold);font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px}
+.vid-bd{padding:12px 14px}
+.rec-btn{width:100%;padding:13px;background:var(--navy);color:var(--gold);border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.vid-item{display:flex;align-items:center;gap:8px;padding:7px 10px;background:#f8f8f6;border-radius:var(--radius-sm);margin-top:6px;font-size:12px;color:var(--txt)}
+
+/* CAMERA MODAL */
+.cam-modal{display:none;position:fixed;inset:0;background:#000;z-index:999;flex-direction:column}
+.cam-modal.open{display:flex}
+.cam-wrap{flex:1;position:relative;overflow:hidden}
+#cam-video{width:100%;height:100%;object-fit:cover}
+.cam-overlay{position:absolute;inset:0;pointer-events:none}
+.ov-top{position:absolute;top:0;left:0;right:0;background:linear-gradient(to bottom,rgba(0,0,0,.75),transparent);padding:12px}
+.ov-logo-row{display:flex;align-items:center;gap:8px}
+.ov-lb{background:#fff;border-radius:5px;padding:2px 8px}
+.ov-lt{font-size:12px;font-weight:800;color:#0a1628;letter-spacing:1px}
+.ov-ls{font-size:5.5px;color:#555}
+.ov-dt{color:#fff;font-size:12px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.8);margin-top:3px}
+.ov-pt{color:var(--gold);font-size:10px;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+.ov-cl{color:#aaa;font-size:9px;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+.ov-rec{position:absolute;top:12px;right:12px;display:flex;align-items:center;gap:4px}
+.rec-dot{width:8px;height:8px;border-radius:50%;background:#f00;animation:blink .7s infinite}
+.rec-txt{color:#fff;font-size:11px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.ov-bot{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(to top,rgba(0,0,0,.75),transparent);padding:20px 16px;display:flex;align-items:center;justify-content:center;gap:20px}
+.cbtn{width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px}
+.cbtn-rec{width:68px;height:68px;background:#f00;border:4px solid #fff}
+.cbtn-rec.on{background:#333;border-color:#f00}
+.cbtn-sm{background:rgba(255,255,255,.2);color:#fff}
+
+/* FIRMA */
+.firma-wrap{background:#f8f8f6;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-top:8px}
+.firma-lbl{font-size:10px;color:var(--txt3);padding:6px 10px;border-bottom:1px solid var(--border)}
+#firma-canvas{display:block;touch-action:none;background:#fff;width:100%}
+.firma-actions{padding:6px 10px}
+
+/* REPORT */
+.prog-wrap{background:#f0f0ee;border-radius:20px;height:6px;margin:6px 0 12px}
+.prog-fill{height:6px;border-radius:20px;background:var(--gold);transition:width .4s}
+.rs-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f3;font-size:13px}
+.rs-row:last-child{border-bottom:none}
+.rs-l{color:var(--txt2)}
+.rs-v{font-weight:600;color:var(--txt);text-align:right;max-width:55%}
+.send-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.send-btn{padding:14px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;border:none}
+.sw{background:#25D366;color:#fff}
+.sp{background:var(--red);color:#fff}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;transition:transform .3s;white-space:nowrap;pointer-events:none}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* LOADING */
+.loading-screen{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:9998;flex-direction:column;gap:12px}
+.loading-logo{background:#fff;border-radius:8px;padding:6px 14px;text-align:center}
+.loading-logo-t{font-size:24px;font-weight:800;color:var(--navy);letter-spacing:2px}
+.loading-logo-s{font-size:7px;color:#555;letter-spacing:.4px}
+.loading-txt{color:rgba(255,255,255,.5);font-size:12px}
+.spinner{width:32px;height:32px;border:3px solid rgba(200,168,75,.2);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* PUNTO BADGE */
+.punto-badge{background:rgba(200,168,75,.15);border:1px solid rgba(200,168,75,.3);border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--gold);font-weight:500}
+
+/* NO VIAJE */
+.no-viaje{text-align:center;padding:40px 20px;color:var(--txt2)}
+.no-viaje-icon{font-size:40px;margin-bottom:10px}
+.no-viaje p{font-size:13px;line-height:1.6}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-screen" id="loading">
+  <div class="loading-logo">
+    <div class="loading-logo-t">GSPN</div>
+    <div class="loading-logo-s">GRUPO DE SEGURIDAD PRIVADA DEL NOROESTE</div>
+  </div>
+  <div class="spinner"></div>
+  <div class="loading-txt">Iniciando sistema...</div>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen" style="display:none">
+  <div class="login-screen">
+    <div class="login-logo">
+      <div class="login-logo-t">GSPN</div>
+      <div class="login-logo-s">GRUPO DE SEGURIDAD PRIVADA DEL NOROESTE</div>
+    </div>
+    <div class="login-title">SISTEMA DE CUSTODIA</div>
+    <div class="login-sub">Ingrese sus credenciales para continuar</div>
+    <div class="login-form">
+      <input class="login-inp" type="email" id="login-email" placeholder="Correo electrónico" autocomplete="email">
+      <input class="login-inp" type="password" id="login-pass" placeholder="Contraseña" autocomplete="current-password">
+      <button class="login-btn" onclick="doLogin()">INGRESAR</button>
+      <div class="login-err" id="login-err"></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-screen" style="display:none">
+  <div class="hdr">
+    <div class="hdr-logo">
+      <div class="hdr-logo-t">GSPN</div>
+      <div class="hdr-logo-s">GRUPO DE SEG. PRIVADA DEL NOROESTE</div>
+    </div>
+    <div class="hdr-info">
+      <div class="hdr-title">Custodia de carga</div>
+      <div class="hdr-sub">Los Mochis → Tijuana</div>
+      <div class="client-pill" id="hdr-client">Sin cliente</div>
+    </div>
+    <button class="hdr-logout" onclick="doLogout()">Salir</button>
+  </div>
+
+  <div class="route">
+    <div class="rs"><div class="rd pend" id="rd1"></div><div class="rn">Desengaño</div></div>
+    <div class="rl"></div>
+    <div class="rs"><div class="rd pend" id="rd2"></div><div class="rn">Querobabi</div></div>
+    <div class="rl"></div>
+    <div class="rs"><div class="rd pend" id="rd3"></div><div class="rn">Sonoita</div></div>
+    <div class="rl"></div>
+    <div class="rs"><div class="rd pend" id="rd4"></div><div class="rn">Centinela</div></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('unidad')" id="tab-btn-unidad">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Unidad
+    </div>
+    <div class="tab" onclick="showTab('revision')" id="tab-btn-revision">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Revisión
+    </div>
+    <div class="tab" onclick="showTab('evidencia')" id="tab-btn-evidencia">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>Videos
+    </div>
+    <div class="tab" onclick="showTab('reporte')" id="tab-btn-reporte">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Reporte
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- UNIDAD -->
+    <div id="pnl-unidad">
+      <div class="punto-badge" id="punto-badge">📍 Cargando punto asignado...</div>
+      <p class="sec-title">Cliente</p>
+      <div class="cl-grid">
+        <button class="cl-btn" id="cl-amazon" onclick="setClient('Amazon')">
+          <div class="cl-logo" style="color:#f90">amazon</div><div class="cl-name">Amazon</div>
+        </button>
+        <button class="cl-btn" id="cl-tyco" onclick="setClient('Tyco')">
+          <div class="cl-logo" style="color:#c62828">TYCO</div><div class="cl-name">Tyco</div>
+        </button>
+        <button class="cl-btn" id="cl-otro" onclick="setClient('otro')">
+          <div class="cl-logo">+ Otro</div><div class="cl-name">Otro</div>
+        </button>
+      </div>
+      <div id="otro-wrap" style="display:none;margin-bottom:12px">
+        <div class="f full"><label>Nombre del cliente</label><input type="text" id="custom-client" placeholder="Nombre de la empresa" oninput="updateClientBadge()"></div>
+      </div>
+      <p class="sec-title">Datos de la unidad</p>
+      <div class="card">
+        <div class="fg">
+          <div class="f full"><label>No. de guía</label><input type="text" id="guia" placeholder="Ej. AMZ-00000000"></div>
+          <div class="f"><label>Placas</label><input type="text" id="placas" placeholder="XXX-000-XX"></div>
+          <div class="f"><label>No. de unidad</label><input type="text" id="unidad-num" placeholder="U-0000"></div>
+          <div class="f full"><label>Nombre del operador</label><input type="text" id="operador" placeholder="Nombre completo"></div>
+          <div class="f"><label>No. de sello</label><input type="text" id="sello" placeholder="S-0000000"></div>
+          <div class="f"><label>No. de candado</label><input type="text" id="candado" placeholder="C-0000000"></div>
+          <div class="f full"><label>Custodio GSPN</label><input type="text" id="custodio" placeholder="Nombre del agente" id="custodio"></div>
+          <div class="f full"><label>Hora de salida origen</label><input type="datetime-local" id="hora-salida"></div>
+        </div>
+        <button class="btn-p" onclick="crearViaje()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          Crear viaje e iniciar revisión
+        </button>
+      </div>
+
+      <!-- VIAJES ACTIVOS EN ESTE PUNTO -->
+      <p class="sec-title">Viajes activos en mi punto</p>
+      <div id="viajes-activos">
+        <div style="text-align:center;padding:20px;color:var(--txt3);font-size:13px">Cargando viajes...</div>
+      </div>
+    </div>
+
+    <!-- REVISION -->
+    <div id="pnl-revision" style="display:none">
+      <p class="sec-title">Punto de revisión — <span id="rev-punto-name" style="color:var(--gold)">—</span></p>
+      <div id="cp-list"></div>
+    </div>
+
+    <!-- EVIDENCIA -->
+    <div id="pnl-evidencia" style="display:none">
+      <p class="sec-title">Videos con marca de agua GSPN</p>
+      <p style="font-size:12px;color:var(--txt2);margin-bottom:12px;line-height:1.6">Cada video incluye fecha, hora, punto y logo GSPN automáticamente.</p>
+      <div id="ev-list"></div>
+    </div>
+
+    <!-- REPORTE -->
+    <div id="pnl-reporte" style="display:none">
+      <p class="sec-title">Resumen del recorrido</p>
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <div style="width:38px;height:38px;background:var(--navy);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c8a84b" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          </div>
+          <div>
+            <div style="font-size:15px;font-weight:600;color:var(--txt)" id="rep-guia-h">—</div>
+            <div style="font-size:11px;color:var(--txt2)" id="rep-client-h">—</div>
+          </div>
+        </div>
+        <div class="rs-row"><span class="rs-l">Operador</span><span class="rs-v" id="rep-op">—</span></div>
+        <div class="rs-row"><span class="rs-l">Placas</span><span class="rs-v" id="rep-pl">—</span></div>
+        <div class="rs-row"><span class="rs-l">No. sello</span><span class="rs-v" id="rep-se">—</span></div>
+        <div class="rs-row"><span class="rs-l">No. candado</span><span class="rs-v" id="rep-ca">—</span></div>
+        <div class="rs-row"><span class="rs-l">Custodio GSPN</span><span class="rs-v" id="rep-cu">—</span></div>
+        <div class="rs-row"><span class="rs-l">Hora salida</span><span class="rs-v" id="rep-hs">—</span></div>
+      </div>
+      <div class="card">
+        <p style="font-size:13px;font-weight:600;color:var(--txt);margin-bottom:8px">Puntos de revisión</p>
+        <div class="prog-wrap"><div class="prog-fill" id="prog" style="width:0%"></div></div>
+        <div id="rep-cps"></div>
+      </div>
+      <div class="card">
+        <p style="font-size:13px;font-weight:600;color:var(--txt);margin-bottom:8px">Videos registrados</p>
+        <div id="rep-videos"></div>
+      </div>
+      <div class="card">
+        <p style="font-size:13px;font-weight:600;color:var(--txt);margin-bottom:4px">Firma del custodio</p>
+        <p style="font-size:11px;color:var(--txt2);margin-bottom:8px">Dibuje su firma con el dedo</p>
+        <div class="firma-wrap">
+          <div class="firma-lbl">Firma</div>
+          <canvas id="firma-canvas" height="120"></canvas>
+          <div class="firma-actions"><button class="btn-sm" onclick="clearFirma()">Borrar firma</button></div>
+        </div>
+      </div>
+      <div class="send-grid">
+        <button class="send-btn sw" onclick="sendWA()">📱 WhatsApp</button>
+        <button class="send-btn sp" onclick="generatePDF()">📄 PDF</button>
+      </div>
+      <p style="font-size:10px;color:var(--txt3);text-align:center;margin-top:8px">PDF incluye datos, checklists, videos y firma</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- CAMERA MODAL -->
+<div class="cam-modal" id="cam-modal">
+  <div class="cam-wrap">
+    <video id="cam-video" autoplay playsinline muted></video>
+    <div class="cam-overlay">
+      <div class="ov-top">
+        <div class="ov-logo-row">
+          <div class="ov-lb"><div class="ov-lt">GSPN</div><div class="ov-ls">GRUPO DE SEGURIDAD PRIVADA DEL NOROESTE</div></div>
+          <div>
+            <div class="ov-dt" id="ov-datetime">--:--</div>
+            <div class="ov-pt" id="ov-point">—</div>
+            <div class="ov-cl" id="ov-client">—</div>
+          </div>
+        </div>
+      </div>
+      <div class="ov-rec" id="ov-rec" style="display:none">
+        <div class="rec-dot"></div>
+        <span class="rec-txt">REC <span id="ov-rec-time">0:00</span></span>
+      </div>
+      <div class="ov-bot">
+        <button class="cbtn cbtn-sm" onclick="closeCamera()">✕</button>
+        <button class="cbtn cbtn-rec" id="btn-rec" onclick="toggleRec()">⏺</button>
+        <button class="cbtn cbtn-sm" onclick="flipCamera()">🔄</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- FIREBASE -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, collection, addDoc, onSnapshot, query, where, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD-740tRu17a8Q8jGz1TxUbt3Xs9CtKViA",
+  authDomain: "gspn-custodia.firebaseapp.com",
+  projectId: "gspn-custodia",
+  storageBucket: "gspn-custodia.firebasestorage.app",
+  messagingSenderId: "947997031571",
+  appId: "1:947997031571:web:9bf4b63f46b60544312166"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// PUNTOS CONFIG
+const PUNTOS = {
+  'desengano@gspn.mx': { id:'desengano', name:'El Desengaño', loc:'Tramo Los Mochis - Navojoa', num:1 },
+  'querobabi@gspn.mx': { id:'querobabi', name:'Querobabi', loc:'Fed. 15 Hermosillo - Sta. Ana • Km 111', num:2 },
+  'sonoita@gspn.mx':   { id:'sonoita', name:'PVI Sonoita', loc:'Tramo Sonoita - San Luis R.C. • Km 176.5', num:3 },
+  'centinela@gspn.mx': { id:'centinela', name:'El Centinela', loc:'Mexicali - La Rumorosa • Km 40', num:4 },
+  'admin@gspn.mx':     { id:'desengano', name:'El Desengaño (Admin)', loc:'Tramo Los Mochis - Navojoa', num:1 },
+  'supervisor@gspn.mx':{ id:'desengano', name:'El Desengaño (Supervisor)', loc:'Tramo Los Mochis - Navojoa', num:1 }
+};
+
+const CPS = [
+  {id:'desengano', name:'El Desengaño', loc:'Tramo Los Mochis - Navojoa, Sin.', num:1},
+  {id:'querobabi', name:'Querobabi', loc:'Fed. 15 Hermosillo - Sta. Ana • Km 111', num:2},
+  {id:'sonoita', name:'PVI Sonoita', loc:'Tramo Sonoita - San Luis Río Colorado • Km 176.5', num:3},
+  {id:'centinela', name:'El Centinela', loc:'Mexicali - La Rumorosa • Km 40', num:4}
+];
+
+const CHECKS = [
+  {t:'Candado intacto', icon:'🔒'},
+  {t:'Sello intacto', icon:'🏷️'},
+  {t:'Documentación en orden', icon:'📋'},
+  {t:'Carga sin alteraciones visibles', icon:'📦'}
+];
+
+// STATE
+let currentUser = null;
+let userPunto = null;
+let currentViajeId = null;
+let viajeData = null;
+let checkResults = {};
+let semaforos = {};
+let horasCp = {};
+let obsCp = {};
+let videoLists = {desengano:[], querobabi:[], sonoita:[], centinela:[]};
+let cpDone = {desengano:false, querobabi:false, sonoita:false, centinela:false};
+let unsubViajes = null;
+
+// EXPOSE GLOBALS
+window._db = db;
+window._currentViajeId = null;
+window._userPunto = null;
+
+// AUTH STATE
+onAuthStateChanged(auth, async (user) => {
+  document.getElementById('loading').style.display = 'none';
+  if (user) {
+    currentUser = user;
+    userPunto = PUNTOS[user.email] || PUNTOS['desengano@gspn.mx'];
+    window._userPunto = userPunto;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-screen').style.display = 'block';
+    document.getElementById('punto-badge').textContent = '📍 Tu punto: ' + userPunto.name;
+    document.getElementById('rev-punto-name').textContent = userPunto.name;
+    document.getElementById('custodio').value = user.email.split('@')[0];
+    document.getElementById('hora-salida').value = new Date().toISOString().slice(0,16);
+    loadViajesActivos();
+  } else {
+    document.getElementById('login-screen').style.display = 'block';
+    document.getElementById('app-screen').style.display = 'none';
+  }
+});
+
+// LOGIN
+window.doLogin = async function() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-err');
+  errEl.textContent = '';
+  if (!email || !pass) { errEl.textContent = 'Ingrese email y contraseña'; return; }
+  try {
+    document.querySelector('.login-btn').textContent = 'Ingresando...';
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch(e) {
+    document.querySelector('.login-btn').textContent = 'INGRESAR';
+    errEl.textContent = 'Email o contraseña incorrectos';
+  }
+};
+
+window.doLogout = async function() {
+  if (unsubViajes) unsubViajes();
+  await signOut(auth);
+};
+
+// CLIENT
+window.setClient = function(c) {
+  ['amazon','tyco','otro'].forEach(id => document.getElementById('cl-'+id).classList.remove('active'));
+  document.getElementById('cl-'+(c==='otro'?'otro':c.toLowerCase())).classList.add('active');
+  window._selectedClient = c;
+  document.getElementById('otro-wrap').style.display = c==='otro' ? 'block' : 'none';
+  updateClientBadge();
+};
+window.updateClientBadge = function() {
+  const name = window._selectedClient==='otro' ? (document.getElementById('custom-client').value||'Otro') : (window._selectedClient||'Sin cliente');
+  document.getElementById('hdr-client').textContent = name;
+};
+window._selectedClient = '';
+
+// TABS
+window.showTab = function(t) {
+  ['unidad','revision','evidencia','reporte'].forEach(id => {
+    document.getElementById('pnl-'+id).style.display = id===t ? 'block' : 'none';
+    document.getElementById('tab-btn-'+id).classList.toggle('active', id===t);
+  });
+  if (t==='evidencia') renderEv();
+  if (t==='reporte') { renderReport(); initFirma(); }
+};
+
+// CREAR VIAJE
+window.crearViaje = async function() {
+  const guia = document.getElementById('guia').value.trim();
+  const client = window._selectedClient==='otro' ? (document.getElementById('custom-client').value||'Otro') : window._selectedClient;
+  if (!guia) { showToast('Ingresa el número de guía'); return; }
+  if (!client) { showToast('Selecciona un cliente'); return; }
+  try {
+    const viajeRef = await addDoc(collection(db, 'viajes'), {
+      guia, cliente: client,
+      placas: document.getElementById('placas').value,
+      unidad: document.getElementById('unidad-num').value,
+      operador: document.getElementById('operador').value,
+      sello: document.getElementById('sello').value,
+      candado: document.getElementById('candado').value,
+      custodioInicial: document.getElementById('custodio').value,
+      horaSalida: document.getElementById('hora-salida').value,
+      status: 'activo',
+      creadoPor: currentUser.email,
+      creadoEn: serverTimestamp(),
+      puntoActual: userPunto.id,
+      checkpoints: {}
+    });
+    currentViajeId = viajeRef.id;
+    window._currentViajeId = currentViajeId;
+    viajeData = { guia, cliente: client, placas: document.getElementById('placas').value, operador: document.getElementById('operador').value, sello: document.getElementById('sello').value, candado: document.getElementById('candado').value, custodio: document.getElementById('custodio').value, horaSalida: document.getElementById('hora-salida').value };
+    showToast('✅ Viaje creado — ID: ' + viajeRef.id.slice(0,8));
+    renderCPs();
+    showTab('revision');
+  } catch(e) {
+    showToast('Error al crear viaje: ' + e.message);
+  }
+};
+
+// CARGAR VIAJES ACTIVOS EN ESTE PUNTO
+function loadViajesActivos() {
+  if (unsubViajes) unsubViajes();
+  const q = query(collection(db, 'viajes'), where('status','==','activo'));
+  unsubViajes = onSnapshot(q, (snap) => {
+    const cont = document.getElementById('viajes-activos');
+    if (snap.empty) {
+      cont.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt3);font-size:13px">No hay viajes activos.<br>Crea uno arriba cuando llegue el camión.</div>';
+      return;
+    }
+    let h = '';
+    snap.forEach(d => {
+      const v = d.data();
+      const cps = v.checkpoints || {};
+      const done = Object.values(cps).filter(c => c.completado).length;
+      h += `<div class="card" style="cursor:pointer" onclick="abrirViaje('${d.id}')">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="font-size:14px;font-weight:600;color:var(--txt)">${v.guia}</div>
+          <div style="font-size:10px;color:var(--txt2);flex:1">${v.cliente}</div>
+          <span style="font-size:10px;background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:10px;font-weight:600">${done}/4</span>
+        </div>
+        <div style="font-size:11px;color:var(--txt2)">Operador: ${v.operador||'—'} • Placas: ${v.placas||'—'}</div>
+        <div style="margin-top:8px;background:#f0f0ee;border-radius:4px;height:4px"><div style="height:4px;border-radius:4px;background:var(--gold);width:${done/4*100}%"></div></div>
+        <div style="font-size:10px;color:var(--gold);margin-top:6px;font-weight:500">Toca para abrir y atender →</div>
+      </div>`;
+    });
+    cont.innerHTML = h;
+  });
+}
+
+window.abrirViaje = async function(viajeId) {
+  currentViajeId = viajeId;
+  window._currentViajeId = viajeId;
+  const snap = await getDoc(doc(db, 'viajes', viajeId));
+  if (!snap.exists()) { showToast('Viaje no encontrado'); return; }
+  const v = snap.data();
+  viajeData = v;
+  // Restore state
+  const cps = v.checkpoints || {};
+  CPS.forEach(cp => {
+    if (cps[cp.id]) {
+      cpDone[cp.id] = cps[cp.id].completado || false;
+      semaforos[cp.id] = cps[cp.id].semaforo || null;
+      horasCp[cp.id] = cps[cp.id].hora || '';
+      obsCp[cp.id] = cps[cp.id].obs || '';
+      checkResults[cp.id] = cps[cp.id].checks || {};
+      videoLists[cp.id] = cps[cp.id].videos || [];
+    }
+  });
+  renderCPs();
+  showTab('revision');
+  showToast('Viaje ' + v.guia + ' abierto');
+};
+
+// RENDER CHECKPOINTS
+function renderCPs() {
+  let h = '';
+  CPS.forEach(cp => {
+    const done = cpDone[cp.id];
+    const sem = semaforos[cp.id];
+    const isMyPoint = cp.id === userPunto.id;
+    const stC = done ? (sem==='rojo'?'st-r':'st-v') : (isMyPoint?'st-p':'st-lock');
+    const stT = done ? (sem==='rojo'?'🔴 Rojo':'🟢 Verde') : (isMyPoint?'Pendiente':'🔒 Otro punto');
+    h += `<div class="cp"><div class="cp-hd" onclick="toggleCP('${cp.id}')">
+      <div class="cp-num">${cp.num}</div>
+      <div class="cp-info"><div class="cp-name">${cp.name}</div><div class="cp-loc">${cp.loc}</div></div>
+      <span class="cp-st ${stC}" id="st-${cp.id}">${stT}</span>
+    </div>`;
+    if (isMyPoint || done) {
+      h += `<div class="cp-bd" id="cpb-${cp.id}">`;
+      if (!currentViajeId) { h += '<p style="font-size:12px;color:var(--txt3);padding:10px 0">Crea o abre un viaje primero.</p>'; }
+      else {
+        h += '<div class="chk">';
+        CHECKS.forEach((ch, ci) => {
+          const cur = (checkResults[cp.id]||{})[ci]||'';
+          h += `<div class="ci"><span class="ci-icon">${ch.icon}</span><label>${ch.t}</label><div class="ci-btns">
+            <button class="btn-sm${cur==='ok'?' ok':''}" onclick="setCheck('${cp.id}',${ci},'ok',this)">✔ Ok</button>
+            <button class="btn-sm${cur==='fail'?' fail':''}" onclick="setCheck('${cp.id}',${ci},'fail',this)">✖ Falla</button>
+          </div></div>`;
+        });
+        h += '</div>';
+        h += `<p style="font-size:11px;font-weight:600;color:var(--txt2);margin-top:10px;margin-bottom:6px">Semáforo militar</p>
+        <div class="sem-row">
+          <button class="sem sem-v${sem==='verde'?' on':''}" id="sv-${cp.id}" onclick="setSem('${cp.id}','verde')">🟢 Verde — Libre</button>
+          <button class="sem sem-r${sem==='rojo'?' on':''}" id="sr-${cp.id}" onclick="setSem('${cp.id}','rojo')">🔴 Rojo — 2a revisión</button>
+        </div>
+        <div class="rojo-alert" id="ra-${cp.id}" style="display:${sem==='rojo'?'block':'none'}">
+          <p>⚠️ Revisión exhaustiva activada</p>
+          <p>Grabe todo el recorrido del agente del Ejército Mexicano dentro del camión. El video es evidencia oficial.</p>
+        </div>
+        <p style="font-size:11px;color:var(--txt2);margin-top:10px;margin-bottom:4px">Hora de llegada</p>
+        <input type="time" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:#fff" value="${horasCp[cp.id]||''}" onchange="horasCp['${cp.id}']=this.value">
+        <p style="font-size:11px;color:var(--txt2);margin-top:10px;margin-bottom:4px">Observaciones</p>
+        <textarea style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;resize:none;background:#fff" rows="2" placeholder="Notas del punto..." onchange="obsCp['${cp.id}']=this.value">${obsCp[cp.id]||''}</textarea>
+        <button class="btn-p" style="margin-top:10px" onclick="completeCP('${cp.id}')">✔ Marcar completado y guardar</button>`;
+        if (cp.id === CPS[3].id && cpDone['desengano'] && cpDone['querobabi'] && cpDone['sonoita'] && cpDone['centinela']) {
+          h += `<button class="btn-p" style="margin-top:6px;background:#25D366" onclick="cerrarServicio()">🏁 Cerrar servicio y enviar reporte</button>`;
+        }
+      }
+      h += '</div>';
+    }
+    h += '</div>';
+  });
+  document.getElementById('cp-list').innerHTML = h;
+  updateDots();
+}
+
+window.toggleCP = function(id) { document.getElementById('cpb-'+id)?.classList.toggle('open'); };
+
+window.setCheck = function(cpId, ci, val, btn) {
+  if (!checkResults[cpId]) checkResults[cpId] = {};
+  checkResults[cpId][ci] = val;
+  btn.closest('.ci-btns').querySelectorAll('.btn-sm').forEach(b => b.className='btn-sm');
+  btn.className = 'btn-sm ' + val;
+};
+
+window.setSem = function(id, val) {
+  semaforos[id] = val;
+  document.getElementById('sv-'+id).className = 'sem sem-v' + (val==='verde'?' on':'');
+  document.getElementById('sr-'+id).className = 'sem sem-r' + (val==='rojo'?' on':'');
+  document.getElementById('ra-'+id).style.display = val==='rojo' ? 'block' : 'none';
+};
+
+window.completeCP = async function(id) {
+  if (!currentViajeId) { showToast('No hay viaje activo'); return; }
+  cpDone[id] = true;
+  const el = document.getElementById('st-'+id);
+  const sem = semaforos[id];
+  el.className = 'cp-st ' + (sem==='rojo'?'st-r':'st-v');
+  el.textContent = sem==='rojo' ? '🔴 Rojo' : '🟢 Verde';
+  document.getElementById('cpb-'+id)?.classList.remove('open');
+  // Save to Firestore
+  try {
+    const viajeRef = doc(db, 'viajes', currentViajeId);
+    const field = 'checkpoints.' + id;
+    await updateDoc(viajeRef, {
+      [field]: {
+        completado: true,
+        semaforo: sem || 'verde',
+        hora: horasCp[id] || '',
+        obs: obsCp[id] || '',
+        checks: checkResults[id] || {},
+        videos: videoLists[id] || [],
+        custodio: currentUser.email,
+        timestamp: new Date().toISOString()
+      },
+      puntoActual: id
+    });
+    showToast('✅ Punto ' + id + ' guardado en Firestore');
+  } catch(e) {
+    showToast('Error al guardar: ' + e.message);
+  }
+  updateDots();
+};
+
+window.cerrarServicio = async function() {
+  if (!currentViajeId) return;
+  try {
+    await updateDoc(doc(db, 'viajes', currentViajeId), { status: 'completado', completadoEn: serverTimestamp() });
+    showToast('🏁 Servicio cerrado. Generando reporte...');
+    showTab('reporte');
+  } catch(e) {
+    showToast('Error: ' + e.message);
+  }
+};
+
+function updateDots() {
+  CPS.forEach((cp, i) => {
+    const d = document.getElementById('rd'+(i+1));
+    if (!d) return;
+    if (cpDone[cp.id]) d.className='rd done';
+    else if (cp.id === userPunto.id) d.className='rd active';
+    else d.className='rd pend';
+  });
+}
+
+// EVIDENCIA
+function renderEv() {
+  let h = '';
+  CPS.forEach(cp => {
+    const cnt = (videoLists[cp.id]||[]).length;
+    h += `<div class="vid-card"><div class="vid-hd"><span>📍 ${cp.name}</span><span class="vid-cnt">${cnt} video${cnt!==1?'s':''}</span></div><div class="vid-bd">
+      <button class="rec-btn" onclick="openCamera('${cp.id}')">🎥 Grabar video — ${cp.name}</button>
+      <div id="vl-${cp.id}">`;
+    (videoLists[cp.id]||[]).forEach(v => { h += `<div class="vid-item">📹 ${v}</div>`; });
+    h += '</div></div></div>';
+  });
+  document.getElementById('ev-list').innerHTML = h;
+}
+
+// CAMERA
+let camStream=null, mediaRec=null, recChunks=[], recTimer=null, recSecs=0;
+let currentCamCpId=null, camFacing='environment', dtTimer=null;
+
+window.openCamera = function(cpId) {
+  currentCamCpId = cpId;
+  const cp = CPS.find(c => c.id===cpId);
+  document.getElementById('cam-modal').classList.add('open');
+  document.getElementById('ov-point').textContent = cp ? cp.name : cpId;
+  document.getElementById('ov-client').textContent = 'Cliente: ' + (window._selectedClient||viajeData?.cliente||'—');
+  startDtTimer();
+  startStream();
+};
+
+window.closeCamera = function() {
+  stopRec(false);
+  if (camStream) { camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  clearInterval(dtTimer);
+  document.getElementById('cam-modal').classList.remove('open');
+};
+
+function startStream() {
+  if (camStream) camStream.getTracks().forEach(t=>t.stop());
+  navigator.mediaDevices.getUserMedia({video:{facingMode:camFacing,width:{ideal:1280},height:{ideal:720}},audio:true})
+    .then(s => { camStream=s; document.getElementById('cam-video').srcObject=s; })
+    .catch(() => { showToast('No se pudo acceder a la cámara'); closeCamera(); });
+}
+
+window.flipCamera = function() { camFacing = camFacing==='environment'?'user':'environment'; startStream(); };
+
+function startDtTimer() {
+  clearInterval(dtTimer);
+  const upd = () => {
+    const now = new Date();
+    document.getElementById('ov-datetime').textContent = now.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+now.toLocaleTimeString('es-MX');
+  };
+  upd(); dtTimer = setInterval(upd, 1000);
+}
+
+window.toggleRec = function() {
+  if (!mediaRec || mediaRec.state==='inactive') startRec(); else stopRec(true);
+};
+
+function startRec() {
+  if (!camStream) return;
+  recChunks=[]; recSecs=0;
+  try { mediaRec = new MediaRecorder(camStream, {mimeType:'video/webm;codecs=vp8,opus'}); }
+  catch(e) { try { mediaRec = new MediaRecorder(camStream); } catch(e2) { showToast('Grabación no soportada'); return; } }
+  mediaRec.ondataavailable = e => { if(e.data&&e.data.size>0) recChunks.push(e.data); };
+  mediaRec.onstop = saveVideo;
+  mediaRec.start(1000);
+  document.getElementById('btn-rec').classList.add('on');
+  document.getElementById('btn-rec').textContent='⏹';
+  document.getElementById('ov-rec').style.display='flex';
+  recTimer = setInterval(() => {
+    recSecs++;
+    const m=Math.floor(recSecs/60), s=recSecs%60;
+    document.getElementById('ov-rec-time').textContent = m+':'+(s<10?'0':'')+s;
+  },1000);
+}
+
+function stopRec(save) {
+  clearInterval(recTimer);
+  document.getElementById('btn-rec').classList.remove('on');
+  document.getElementById('btn-rec').textContent='⏺';
+  document.getElementById('ov-rec').style.display='none';
+  if (mediaRec&&mediaRec.state!=='inactive') { if(!save) mediaRec.ondataavailable=()=>{}; mediaRec.stop(); }
+}
+
+function saveVideo() {
+  if (!recChunks.length) return;
+  const blob = new Blob(recChunks,{type:'video/webm'});
+  const now = new Date();
+  const fname = 'GSPN_'+currentCamCpId+'_'+now.toISOString().slice(0,19).replace(/:/g,'-')+'.webm';
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=fname; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+  if (!videoLists[currentCamCpId]) videoLists[currentCamCpId]=[];
+  const label = fname.replace('GSPN_','').replace('.webm','');
+  videoLists[currentCamCpId].push(label);
+  const vl = document.getElementById('vl-'+currentCamCpId);
+  if (vl) { const d=document.createElement('div'); d.className='vid-item'; d.textContent='📹 '+label; vl.appendChild(d); }
+  showToast('Video guardado en descargas');
+  closeCamera();
+}
+
+// FIRMA
+let fCtx=null, fDrawing=false, fInit=false;
+window.initFirma = function() {
+  if (fInit) return; fInit=true;
+  const c = document.getElementById('firma-canvas');
+  c.width = c.offsetWidth||340;
+  fCtx = c.getContext('2d');
+  fCtx.strokeStyle='#0a1628'; fCtx.lineWidth=2; fCtx.lineCap='round'; fCtx.lineJoin='round';
+  const pos = e => { const r=c.getBoundingClientRect(),src=e.touches?e.touches[0]:e; return {x:(src.clientX-r.left)*(c.width/r.width),y:(src.clientY-r.top)*(c.height/r.height)}; };
+  c.addEventListener('mousedown',e=>{fDrawing=true;const p=pos(e);fCtx.beginPath();fCtx.moveTo(p.x,p.y);});
+  c.addEventListener('mousemove',e=>{if(!fDrawing)return;const p=pos(e);fCtx.lineTo(p.x,p.y);fCtx.stroke();});
+  c.addEventListener('mouseup',()=>fDrawing=false);
+  c.addEventListener('touchstart',e=>{e.preventDefault();fDrawing=true;const p=pos(e);fCtx.beginPath();fCtx.moveTo(p.x,p.y);},{passive:false});
+  c.addEventListener('touchmove',e=>{e.preventDefault();if(!fDrawing)return;const p=pos(e);fCtx.lineTo(p.x,p.y);fCtx.stroke();},{passive:false});
+  c.addEventListener('touchend',()=>fDrawing=false);
+};
+window.clearFirma = () => { if(fCtx){const c=document.getElementById('firma-canvas');fCtx.clearRect(0,0,c.width,c.height);} };
+
+// REPORT
+function renderReport() {
+  const v = viajeData || {};
+  document.getElementById('rep-guia-h').textContent = v.guia||document.getElementById('guia').value||'—';
+  document.getElementById('rep-client-h').textContent = v.cliente||window._selectedClient||'—';
+  document.getElementById('rep-op').textContent = v.operador||document.getElementById('operador').value||'—';
+  document.getElementById('rep-pl').textContent = v.placas||document.getElementById('placas').value||'—';
+  document.getElementById('rep-se').textContent = v.sello||document.getElementById('sello').value||'—';
+  document.getElementById('rep-ca').textContent = v.candado||document.getElementById('candado').value||'—';
+  document.getElementById('rep-cu').textContent = v.custodio||v.custodioInicial||document.getElementById('custodio').value||'—';
+  document.getElementById('rep-hs').textContent = v.horaSalida||document.getElementById('hora-salida').value||'—';
+  const done = Object.values(cpDone).filter(Boolean).length;
+  document.getElementById('prog').style.width = Math.round(done/4*100)+'%';
+  let ch='';
+  CPS.forEach(cp=>{
+    const sem=semaforos[cp.id]; const isDone=cpDone[cp.id];
+    ch+=`<div class="rs-row"><span class="rs-l">${cp.num}. ${cp.name}</span><span class="cp-st ${isDone?(sem==='rojo'?'st-r':'st-v'):'st-p'}">${isDone?(sem==='rojo'?'🔴 Rojo':'🟢 Verde'):'Pendiente'}</span></div>`;
+  });
+  document.getElementById('rep-cps').innerHTML=ch;
+  let vh=''; let tv=0;
+  CPS.forEach(cp=>{if((videoLists[cp.id]||[]).length){tv+=(videoLists[cp.id]||[]).length;vh+=`<p style="font-size:11px;font-weight:600;color:var(--txt2);margin:6px 0 3px">${cp.name}</p>`;(videoLists[cp.id]||[]).forEach(vv=>{vh+=`<div class="vid-item">📹 ${vv}</div>`;});}});
+  document.getElementById('rep-videos').innerHTML=vh||'<p style="font-size:12px;color:var(--txt3)">Sin videos registrados</p>';
+}
+
+function buildText() {
+  const v = viajeData||{};
+  let t='*REPORTE DE CUSTODIA — GSPN*\n*Grupo de Seguridad Privada del Noroeste*\n';
+  t+='━━━━━━━━━━━━━━━━━━━━━━\n';
+  t+=`*Cliente:* ${v.cliente||'—'}\n*Guía:* ${v.guia||'—'}\n*Operador:* ${v.operador||'—'}\n*Placas:* ${v.placas||'—'}\n`;
+  t+=`*Sello:* ${v.sello||'—'}\n*Candado:* ${v.candado||'—'}\n*Custodio inicial:* ${v.custodioInicial||'—'}\n`;
+  t+='━━━━━━━━━━━━━━━━━━━━━━\n*PUNTOS DE REVISIÓN*\n';
+  CPS.forEach(cp=>{const sem=semaforos[cp.id];const done=cpDone[cp.id];t+=(done?'✅':'⏳')+` ${cp.num}. ${cp.name}: `+(done?(sem==='rojo'?'🔴 ROJO':'🟢 VERDE'):'Pendiente')+'\n';if(horasCp[cp.id])t+=`   Llegada: ${horasCp[cp.id]}\n`;if(obsCp[cp.id])t+=`   Obs: ${obsCp[cp.id]}\n`;});
+  t+='━━━━━━━━━━━━━━━━━━━━━━\n*VIDEOS*\n';
+  let tv=0;CPS.forEach(cp=>{if((videoLists[cp.id]||[]).length){tv+=(videoLists[cp.id]||[]).length;t+=cp.name+':\n';(videoLists[cp.id]||[]).forEach(vv=>{t+=`  📹 ${vv}\n`;});}});
+  if(!tv)t+='Sin videos\n';
+  t+='━━━━━━━━━━━━━━━━━━━━━━\n';
+  t+=`Generado: ${new Date().toLocaleString('es-MX')}\nGSPN — Grupo de Seguridad Privada del Noroeste`;
+  return t;
+}
+
+window.sendWA = () => window.open('https://wa.me/?text='+encodeURIComponent(buildText()));
+
+window.generatePDF = function() {
+  if (typeof window.jspdf==='undefined') { showToast('Generando PDF...'); setTimeout(window.generatePDF,1000); return; }
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const v=viajeData||{}; let y=0,lm=15,pw=180;
+  doc.setFillColor(10,22,40);doc.rect(0,0,210,32,'F');
+  doc.setFillColor(200,168,75);doc.rect(lm,8,22,16,'F');
+  doc.setTextColor(10,22,40);doc.setFontSize(10);doc.setFont(undefined,'bold');doc.text('GSPN',lm+1,14);
+  doc.setFontSize(5);doc.setFont(undefined,'normal');doc.text(doc.splitTextToSize('GRUPO DE SEGURIDAD PRIVADA DEL NOROESTE',20),lm+1,17);
+  doc.setTextColor(255,255,255);doc.setFontSize(13);doc.setFont(undefined,'bold');doc.text('Reporte de Custodia de Carga',lm+26,14);
+  doc.setFontSize(8);doc.setFont(undefined,'normal');doc.setTextColor(200,168,75);doc.text(`Cliente: ${v.cliente||'—'}  |  ${new Date().toLocaleString('es-MX')}`,lm+26,20);
+  y=40;
+  doc.setTextColor(10,22,40);doc.setFontSize(10);doc.setFont(undefined,'bold');doc.text('DATOS DE LA UNIDAD',lm,y);y+=2;
+  doc.setDrawColor(200,168,75);doc.setLineWidth(.6);doc.line(lm,y,lm+pw,y);y+=7;
+  const fields=[['No. de guía',v.guia||'—'],['Operador',v.operador||'—'],['Placas',v.placas||'—'],['No. unidad',v.unidad||'—'],['No. sello',v.sello||'—'],['No. candado',v.candado||'—'],['Custodio GSPN',v.custodioInicial||'—'],['Hora de salida',v.horaSalida||'—']];
+  const col=pw/2;
+  for(let i=0;i<fields.length;i+=2){doc.setFont(undefined,'bold');doc.setTextColor(100,100,100);doc.setFontSize(8);doc.text(fields[i][0],lm,y);doc.setFont(undefined,'normal');doc.setTextColor(10,22,40);doc.text(fields[i][1],lm+col/2,y);if(fields[i+1]){doc.setFont(undefined,'bold');doc.setTextColor(100,100,100);doc.text(fields[i+1][0],lm+col,y);doc.setFont(undefined,'normal');doc.setTextColor(10,22,40);doc.text(fields[i+1][1],lm+col+col/2,y);}y+=6;}
+  y+=4;
+  doc.setFont(undefined,'bold');doc.setFontSize(10);doc.setTextColor(10,22,40);doc.text('PUNTOS DE REVISIÓN MILITAR',lm,y);y+=2;
+  doc.setDrawColor(200,168,75);doc.line(lm,y,lm+pw,y);y+=7;
+  CPS.forEach(cp=>{const sem=semaforos[cp.id];const done=cpDone[cp.id];doc.setFont(undefined,'bold');doc.setFontSize(9);doc.setTextColor(10,22,40);doc.text(`${cp.num}. ${cp.name}`,lm,y);const status=done?(sem==='rojo'?'ROJO':'VERDE'):'PENDIENTE';if(done&&sem==='rojo'){doc.setTextColor(198,40,40);}else if(done){doc.setTextColor(46,125,50);}else{doc.setTextColor(150,150,150);}doc.text(status,lm+pw,y,'right');doc.setTextColor(10,22,40);y+=5;doc.setFont(undefined,'normal');doc.setFontSize(8);doc.setTextColor(120,120,120);doc.text(cp.loc,lm+3,y);y+=4;if(horasCp[cp.id]){doc.text('Llegada: '+horasCp[cp.id],lm+3,y);y+=4;}if(obsCp[cp.id]){const obs=doc.splitTextToSize('Obs: '+obsCp[cp.id],pw-6);doc.text(obs,lm+3,y);y+=obs.length*4;}y+=2;if(y>250){doc.addPage();y=15;}});
+  // Videos
+  doc.setFont(undefined,'bold');doc.setFontSize(10);doc.setTextColor(10,22,40);doc.text('EVIDENCIA EN VIDEO',lm,y);y+=2;doc.setDrawColor(200,168,75);doc.line(lm,y,lm+pw,y);y+=7;doc.setFont(undefined,'normal');doc.setFontSize(9);let hv=false;
+  CPS.forEach(cp=>{if((videoLists[cp.id]||[]).length){hv=true;doc.setFont(undefined,'bold');doc.setTextColor(10,22,40);doc.text(cp.name+':',lm,y);y+=5;doc.setFont(undefined,'normal');doc.setTextColor(60,60,60);(videoLists[cp.id]||[]).forEach(vv=>{doc.text('• '+vv,lm+3,y);y+=4;});}});
+  if(!hv){doc.setTextColor(150,150,150);doc.text('Sin videos registrados',lm,y);y+=5;}
+  // Firma
+  const fc=document.getElementById('firma-canvas');
+  if(fc&&fCtx){y+=4;doc.setFont(undefined,'bold');doc.setFontSize(10);doc.setTextColor(10,22,40);doc.text('FIRMA DEL CUSTODIO',lm,y);y+=2;doc.setDrawColor(200,168,75);doc.line(lm,y,lm+pw,y);y+=6;try{doc.addImage(fc.toDataURL('image/png'),'PNG',lm,y,90,22);y+=26;}catch(e){}doc.setFont(undefined,'normal');doc.setFontSize(8);doc.setTextColor(10,22,40);doc.text(v.custodioInicial||'—',lm,y);}
+  y=285;doc.setFillColor(10,22,40);doc.rect(0,y-2,210,15,'F');doc.setTextColor(200,168,75);doc.setFontSize(7);doc.text('GSPN • Grupo de Seguridad Privada del Noroeste • '+new Date().toLocaleString('es-MX'),lm,y+4);
+  doc.save('GSPN_Custodia_'+(v.guia||'reporte')+'_'+new Date().toISOString().slice(0,10)+'.pdf');
+  showToast('PDF generado');
+};
+
+// TOAST
+window.showToast = function(msg) {
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+};
+
+// PWA
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+
+// ENTER KEY LOGIN
+document.addEventListener('keydown', e => { if(e.key==='Enter' && document.getElementById('login-screen').style.display!=='none') doLogin(); });
+</script>
+</body>
+</html>
