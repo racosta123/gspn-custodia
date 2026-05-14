@@ -189,6 +189,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .no-viaje{text-align:center;padding:40px 20px;color:var(--txt2)}
 .no-viaje-icon{font-size:40px;margin-bottom:10px}
 .no-viaje p{font-size:13px;line-height:1.6}
+
+/* MIC BUTTON */
+.mic-btn{display:flex;align-items:center;gap:5px;padding:5px 10px;background:var(--navy);color:var(--gold);border:none;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;transition:all .2s;flex-shrink:0}
+.mic-btn.recording{background:#c62828;color:#fff;animation:pulse-red 1s infinite}
+.mic-btn.processing{background:#666;color:#fff;pointer-events:none}
+@keyframes pulse-red{0%,100%{opacity:1}50%{opacity:.7}}
+.mini-spinner{width:18px;height:18px;border:2px solid rgba(200,168,75,.3);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite}
 </style>
 </head>
 <body>
@@ -290,7 +297,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <div class="f full"><label>Nombre del operador</label><input type="text" id="operador" placeholder="Nombre completo"></div>
           <div class="f"><label>No. de sello</label><input type="text" id="sello" placeholder="S-0000000"></div>
           <div class="f"><label>No. de candado</label><input type="text" id="candado" placeholder="C-0000000"></div>
-          <div class="f full"><label>Custodio GSPN</label><input type="text" id="custodio" placeholder="Nombre del agente" id="custodio"></div>
+          <div class="f full"><label>Custodio GSPN</label><input type="text" id="custodio" placeholder="Nombre del agente"></div>
           <div class="f full"><label>Hora de salida origen</label><input type="datetime-local" id="hora-salida"></div>
         </div>
         <button class="btn-p" onclick="crearViaje()">
@@ -423,8 +430,8 @@ const PUNTOS = {
   'querobabi@gspn.mx': { id:'querobabi', name:'Querobabi', loc:'Fed. 15 Hermosillo - Sta. Ana • Km 111', num:2 },
   'sonoita@gspn.mx':   { id:'sonoita', name:'PVI Sonoita', loc:'Tramo Sonoita - San Luis R.C. • Km 176.5', num:3 },
   'centinela@gspn.mx': { id:'centinela', name:'El Centinela', loc:'Mexicali - La Rumorosa • Km 40', num:4 },
-  'admin@gspn.mx':     { id:'desengano', name:'El Desengaño (Admin)', loc:'Tramo Los Mochis - Navojoa', num:1 },
-  'supervisor@gspn.mx':{ id:'desengano', name:'El Desengaño (Supervisor)', loc:'Tramo Los Mochis - Navojoa', num:1 }
+  'admin@gspn.mx':     { id:'*', name:'Administrador', loc:'Acceso total', num:0 },
+  'supervisor@gspn.mx':{ id:'*', name:'Supervisor', loc:'Acceso total', num:0 }
 };
 
 const CPS = [
@@ -471,6 +478,7 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById('punto-badge').textContent = '📍 Tu punto: ' + userPunto.name;
     document.getElementById('rev-punto-name').textContent = userPunto.name;
     document.getElementById('custodio').value = user.email.split('@')[0];
+    updateDots();
     document.getElementById('hora-salida').value = new Date().toISOString().slice(0,16);
     loadViajesActivos();
   } else {
@@ -617,7 +625,7 @@ function renderCPs() {
   CPS.forEach(cp => {
     const done = cpDone[cp.id];
     const sem = semaforos[cp.id];
-    const isMyPoint = cp.id === userPunto.id;
+    const isMyPoint = userPunto.id === '*' || cp.id === userPunto.id;
     const stC = done ? (sem==='rojo'?'st-r':'st-v') : (isMyPoint?'st-p':'st-lock');
     const stT = done ? (sem==='rojo'?'🔴 Rojo':'🟢 Verde') : (isMyPoint?'Pendiente':'🔒 Otro punto');
     h += `<div class="cp"><div class="cp-hd" onclick="toggleCP('${cp.id}')">
@@ -649,8 +657,14 @@ function renderCPs() {
         </div>
         <p style="font-size:11px;color:var(--txt2);margin-top:10px;margin-bottom:4px">Hora de llegada</p>
         <input type="time" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:#fff" value="${horasCp[cp.id]||''}" onchange="horasCp['${cp.id}']=this.value">
-        <p style="font-size:11px;color:var(--txt2);margin-top:10px;margin-bottom:4px">Observaciones</p>
-        <textarea style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;resize:none;background:#fff" rows="2" placeholder="Notas del punto..." onchange="obsCp['${cp.id}']=this.value">${obsCp[cp.id]||''}</textarea>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;margin-bottom:4px">
+          <p style="font-size:11px;color:var(--txt2);font-weight:500">Observaciones</p>
+          <button class="mic-btn" id="mic-${cp.id}" onclick="toggleVoice('${cp.id}')">🎤 Dictar</button>
+        </div>
+        <div style="position:relative">
+          <textarea id="obs-ta-${cp.id}" style="width:100%;padding:9px 44px 9px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;resize:none;background:#fff" rows="3" placeholder="Escriba o dicte las observaciones del punto..." oninput="obsCp['${cp.id}']=this.value">${obsCp[cp.id]||''}</textarea>
+          <div id="obs-loading-${cp.id}" style="display:none;position:absolute;top:10px;right:10px"><div class="mini-spinner"></div></div>
+        </div>
         <button class="btn-p" style="margin-top:10px" onclick="completeCP('${cp.id}')">✔ Marcar completado y guardar</button>`;
         if (cp.id === CPS[3].id && cpDone['desengano'] && cpDone['querobabi'] && cpDone['sonoita'] && cpDone['centinela']) {
           h += `<button class="btn-p" style="margin-top:6px;background:#25D366" onclick="cerrarServicio()">🏁 Cerrar servicio y enviar reporte</button>`;
@@ -787,51 +801,89 @@ function startDtTimer() {
 }
 
 window.toggleRec = function() {
-  if (!mediaRec || mediaRec.state==='inactive') startRec(); else stopRec(true);
+  const btn = document.getElementById('btn-rec');
+  if (!mediaRec || mediaRec.state==='inactive') {
+    startRec();
+  } else if (mediaRec.state==='recording') {
+    stopRec(true);
+  }
 };
 
+function getMimeType() {
+  const types = [
+    'video/mp4;codecs=avc1',
+    'video/mp4',
+    'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=vp9',
+    'video/webm',
+  ];
+  for (const t of types) {
+    if (MediaRecorder.isTypeSupported(t)) return t;
+  }
+  return '';
+}
+
 function startRec() {
-  if (!camStream) return;
-  recChunks=[]; recSecs=0;
-  try { mediaRec = new MediaRecorder(camStream, {mimeType:'video/webm;codecs=vp8,opus'}); }
-  catch(e) { try { mediaRec = new MediaRecorder(camStream); } catch(e2) { showToast('Grabación no soportada'); return; } }
-  mediaRec.ondataavailable = e => { if(e.data&&e.data.size>0) recChunks.push(e.data); };
+  if (!camStream) { showToast('Sin acceso a cámara'); return; }
+  recChunks = []; recSecs = 0;
+  const mimeType = getMimeType();
+  try {
+    mediaRec = mimeType ? new MediaRecorder(camStream, {mimeType}) : new MediaRecorder(camStream);
+  } catch(e) {
+    showToast('Error al iniciar grabación: ' + e.message);
+    return;
+  }
+  mediaRec.ondataavailable = e => { if(e.data && e.data.size > 0) recChunks.push(e.data); };
   mediaRec.onstop = saveVideo;
-  mediaRec.start(1000);
-  document.getElementById('btn-rec').classList.add('on');
-  document.getElementById('btn-rec').textContent='⏹';
-  document.getElementById('ov-rec').style.display='flex';
+  mediaRec.onerror = e => { showToast('Error de grabación: ' + e.error); stopRec(false); };
+  mediaRec.start(500);
+  const btn = document.getElementById('btn-rec');
+  btn.classList.add('on');
+  btn.textContent = '⏹';
+  btn.style.background = '#333';
+  btn.style.borderColor = '#f00';
+  document.getElementById('ov-rec').style.display = 'flex';
   recTimer = setInterval(() => {
     recSecs++;
-    const m=Math.floor(recSecs/60), s=recSecs%60;
+    const m = Math.floor(recSecs/60), s = recSecs%60;
     document.getElementById('ov-rec-time').textContent = m+':'+(s<10?'0':'')+s;
-  },1000);
+  }, 1000);
+  showToast('🔴 Grabando...');
 }
 
 function stopRec(save) {
   clearInterval(recTimer);
-  document.getElementById('btn-rec').classList.remove('on');
-  document.getElementById('btn-rec').textContent='⏺';
-  document.getElementById('ov-rec').style.display='none';
-  if (mediaRec&&mediaRec.state!=='inactive') { if(!save) mediaRec.ondataavailable=()=>{}; mediaRec.stop(); }
+  const btn = document.getElementById('btn-rec');
+  btn.classList.remove('on');
+  btn.textContent = '⏺';
+  btn.style.background = '#f00';
+  btn.style.borderColor = '#fff';
+  document.getElementById('ov-rec').style.display = 'none';
+  if (mediaRec && mediaRec.state !== 'inactive') {
+    if (!save) { mediaRec.ondataavailable = () => {}; mediaRec.onstop = () => {}; }
+    mediaRec.stop();
+  }
 }
 
 function saveVideo() {
-  if (!recChunks.length) return;
-  const blob = new Blob(recChunks,{type:'video/webm'});
+  if (!recChunks.length) { showToast('Sin datos grabados'); return; }
+  const mimeType = (mediaRec && mediaRec.mimeType) ? mediaRec.mimeType : 'video/webm';
+  const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+  const blob = new Blob(recChunks, {type: mimeType});
   const now = new Date();
-  const fname = 'GSPN_'+currentCamCpId+'_'+now.toISOString().slice(0,19).replace(/:/g,'-')+'.webm';
+  const fname = 'GSPN_'+currentCamCpId+'_'+now.toISOString().slice(0,19).replace(/:/g,'-')+'.'+ext;
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href=url; a.download=fname; a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),5000);
+  setTimeout(()=>URL.revokeObjectURL(url), 5000);
   if (!videoLists[currentCamCpId]) videoLists[currentCamCpId]=[];
-  const label = fname.replace('GSPN_','').replace('.webm','');
+  const label = now.toLocaleString('es-MX') + ' — ' + (CPS.find(c=>c.id===currentCamCpId)?.name||currentCamCpId);
   videoLists[currentCamCpId].push(label);
   const vl = document.getElementById('vl-'+currentCamCpId);
   if (vl) { const d=document.createElement('div'); d.className='vid-item'; d.textContent='📹 '+label; vl.appendChild(d); }
-  showToast('Video guardado en descargas');
+  showToast('✅ Video guardado — ' + fname);
   closeCamera();
 }
+
 
 // FIRMA
 let fCtx=null, fDrawing=false, fInit=false;
@@ -895,36 +947,333 @@ window.sendWA = () => window.open('https://wa.me/?text='+encodeURIComponent(buil
 
 window.generatePDF = function() {
   if (typeof window.jspdf==='undefined') { showToast('Generando PDF...'); setTimeout(window.generatePDF,1000); return; }
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-  const v=viajeData||{}; let y=0,lm=15,pw=180;
-  doc.setFillColor(10,22,40);doc.rect(0,0,210,32,'F');
-  doc.setFillColor(200,168,75);doc.rect(lm,8,22,16,'F');
-  doc.setTextColor(10,22,40);doc.setFontSize(10);doc.setFont(undefined,'bold');doc.text('GSPN',lm+1,14);
-  doc.setFontSize(5);doc.setFont(undefined,'normal');doc.text(doc.splitTextToSize('GRUPO DE SEGURIDAD PRIVADA DEL NOROESTE',20),lm+1,17);
-  doc.setTextColor(255,255,255);doc.setFontSize(13);doc.setFont(undefined,'bold');doc.text('Reporte de Custodia de Carga',lm+26,14);
-  doc.setFontSize(8);doc.setFont(undefined,'normal');doc.setTextColor(200,168,75);doc.text(`Cliente: ${v.cliente||'—'}  |  ${new Date().toLocaleString('es-MX')}`,lm+26,20);
-  y=40;
-  doc.setTextColor(10,22,40);doc.setFontSize(10);doc.setFont(undefined,'bold');doc.text('DATOS DE LA UNIDAD',lm,y);y+=2;
-  doc.setDrawColor(200,168,75);doc.setLineWidth(.6);doc.line(lm,y,lm+pw,y);y+=7;
-  const fields=[['No. de guía',v.guia||'—'],['Operador',v.operador||'—'],['Placas',v.placas||'—'],['No. unidad',v.unidad||'—'],['No. sello',v.sello||'—'],['No. candado',v.candado||'—'],['Custodio GSPN',v.custodioInicial||'—'],['Hora de salida',v.horaSalida||'—']];
-  const col=pw/2;
-  for(let i=0;i<fields.length;i+=2){doc.setFont(undefined,'bold');doc.setTextColor(100,100,100);doc.setFontSize(8);doc.text(fields[i][0],lm,y);doc.setFont(undefined,'normal');doc.setTextColor(10,22,40);doc.text(fields[i][1],lm+col/2,y);if(fields[i+1]){doc.setFont(undefined,'bold');doc.setTextColor(100,100,100);doc.text(fields[i+1][0],lm+col,y);doc.setFont(undefined,'normal');doc.setTextColor(10,22,40);doc.text(fields[i+1][1],lm+col+col/2,y);}y+=6;}
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+  const v = viajeData||{};
+  const NAVY=[10,22,40], GOLD=[200,168,75], WHITE=[255,255,255], GRAY=[120,120,120];
+  const LIGHT=[245,244,241], GREEN=[46,125,50], RED=[198,40,40];
+  const lm=18, rm=192, pw=174, fecha=new Date().toLocaleString('es-MX',{dateStyle:'long',timeStyle:'short'});
+  let y=0;
+
+  // ── MEMBRETE SUPERIOR ──────────────────────────────────────────
+  // Franja navy completa
+  doc.setFillColor(...NAVY); doc.rect(0,0,210,42,'F');
+  // Acento dorado izquierdo
+  doc.setFillColor(...GOLD); doc.rect(0,0,5,42,'F');
+  // Caja blanca del logo
+  doc.setFillColor(...WHITE); doc.roundedRect(12,7,36,28,2,2,'F');
+  // Logo GSPN
+  doc.setFont(undefined,'bold'); doc.setFontSize(16);
+  doc.setTextColor(...NAVY); doc.text('GSPN',14,19);
+  doc.setFontSize(4.5); doc.setFont(undefined,'normal');
+  doc.setTextColor(60,60,60);
+  doc.text('GRUPO DE SEGURIDAD',14,23.5);
+  doc.text('PRIVADA DEL NOROESTE',14,27);
+  // Linea dorada debajo del logo texto
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.4);
+  doc.line(14,29,46,29);
+  // Titulo del documento
+  doc.setFont(undefined,'bold'); doc.setFontSize(15);
+  doc.setTextColor(...WHITE); doc.text('REPORTE DE CUSTODIA DE CARGA',55,16);
+  // Subtitulo
+  doc.setFont(undefined,'normal'); doc.setFontSize(8);
+  doc.setTextColor(...GOLD); doc.text('Grupo de Seguridad Privada del Noroeste  •  Sistema GSPN Custodia',55,22);
+  // Folio y fecha
+  doc.setFontSize(7.5); doc.setTextColor(180,160,80);
+  const folio = 'FOLIO: GSPN-'+(v.guia||'000').replace(/[^A-Z0-9]/gi,'').toUpperCase()+'-'+new Date().toISOString().slice(0,10).replace(/-/g,'');
+  doc.text(folio, 55, 28);
+  doc.text('Fecha de emisión: '+fecha, 55, 33);
+  // Linea dorada separadora bajo membrete
+  doc.setDrawColor(...GOLD); doc.setLineWidth(1);
+  doc.line(0,42,210,42);
+  y = 50;
+
+  // ── DATOS DEL SERVICIO ─────────────────────────────────────────
+  // Título sección con fondo
+  doc.setFillColor(...NAVY); doc.rect(lm,y-5,pw,8,'F');
+  doc.setFillColor(...GOLD); doc.rect(lm,y-5,3,8,'F');
+  doc.setFont(undefined,'bold'); doc.setFontSize(9);
+  doc.setTextColor(...WHITE); doc.text('DATOS DEL SERVICIO',lm+6,y);
+  y+=8;
+
+  // Tabla de datos en 2 columnas con fondo alternado
+  const fields=[
+    ['Cliente',v.cliente||'—'],['No. de guía',v.guia||'—'],
+    ['Operador',v.operador||'—'],['Placas',v.placas||'—'],
+    ['No. de unidad',v.unidad||'—'],['No. de sello',v.sello||'—'],
+    ['No. de candado',v.candado||'—'],['Custodio GSPN',v.custodioInicial||'—'],
+    ['Hora de salida',v.horaSalida||'—'],['Ruta',v.ruta||'Los Mochis → Tijuana']
+  ];
+  const colW=pw/2;
+  fields.forEach((f,i)=>{
+    const col=i%2; const row=Math.floor(i/2);
+    const fx=lm+(col*colW); const fy=y+(row*8);
+    // Fondo alternado filas
+    if(row%2===0){ doc.setFillColor(...LIGHT); doc.rect(fx,fy-4,colW,8,'F'); }
+    // Linea dorada izquierda en labels
+    doc.setFillColor(...GOLD); doc.rect(fx,fy-4,1,8,'F');
+    doc.setFont(undefined,'bold'); doc.setFontSize(7); doc.setTextColor(...GRAY);
+    doc.text(f[0].toUpperCase(),fx+3,fy);
+    doc.setFont(undefined,'normal'); doc.setFontSize(8.5); doc.setTextColor(...NAVY);
+    doc.text(f[1],fx+3,fy+4.5);
+  });
+  y += Math.ceil(fields.length/2)*8 + 10;
+
+  // ── PUNTOS DE REVISIÓN MILITAR ─────────────────────────────────
+  doc.setFillColor(...NAVY); doc.rect(lm,y-5,pw,8,'F');
+  doc.setFillColor(...GOLD); doc.rect(lm,y-5,3,8,'F');
+  doc.setFont(undefined,'bold'); doc.setFontSize(9);
+  doc.setTextColor(...WHITE); doc.text('PUNTOS DE REVISIÓN MILITAR',lm+6,y);
+  y+=10;
+
+  CPS.forEach((cp,idx)=>{
+    if(y>240){doc.addPage();addHeader(doc,NAVY,GOLD,WHITE);y=20;}
+    const sem=semaforos[cp.id]; const done=cpDone[cp.id];
+    const rowH=done?28:16;
+    // Fondo de la fila
+    doc.setFillColor(idx%2===0?248:242,idx%2===0?247:241,idx%2===0?244:238);
+    doc.rect(lm,y-5,pw,rowH,'F');
+    // Numero del punto
+    doc.setFillColor(...NAVY); doc.circle(lm+5,y-1,4,'F');
+    doc.setFont(undefined,'bold'); doc.setFontSize(9); doc.setTextColor(...WHITE);
+    doc.text(String(cp.num),lm+5,y+0.5,'center');
+    // Nombre del punto
+    doc.setFont(undefined,'bold'); doc.setFontSize(10); doc.setTextColor(...NAVY);
+    doc.text(cp.name,lm+12,y);
+    // Ubicacion
+    doc.setFont(undefined,'normal'); doc.setFontSize(7); doc.setTextColor(...GRAY);
+    doc.text(cp.loc,lm+12,y+4.5);
+    // Badge resultado
+    if(done){
+      const badgeX=rm-24;
+      if(sem==='rojo'){
+        doc.setFillColor(...RED); doc.roundedRect(badgeX,y-4,22,8,2,2,'F');
+        doc.setFont(undefined,'bold'); doc.setFontSize(7.5); doc.setTextColor(...WHITE);
+        doc.text('ROJO',badgeX+11,y+0.5,'center');
+      } else {
+        doc.setFillColor(...GREEN); doc.roundedRect(badgeX,y-4,22,8,2,2,'F');
+        doc.setFont(undefined,'bold'); doc.setFontSize(7.5); doc.setTextColor(...WHITE);
+        doc.text('VERDE',badgeX+11,y+0.5,'center');
+      }
+      // Detalles
+      doc.setFont(undefined,'normal'); doc.setFontSize(7.5); doc.setTextColor(...GRAY);
+      let detY=y+10;
+      if(horasCp[cp.id]){ doc.text('Hora de llegada: '+horasCp[cp.id],lm+12,detY); detY+=4.5; }
+      if(obsCp[cp.id]){ const obs=doc.splitTextToSize('Observaciones: '+obsCp[cp.id],pw-20); doc.text(obs,lm+12,detY); detY+=obs.length*4; }
+      // Checklist visual
+      const checks=checkResults[cp.id]||{};
+      const checkNames=['Candado','Sello','Documentación','Carga'];
+      let cx=lm+12;
+      checkNames.forEach((cn,ci)=>{
+        const val=checks[ci];
+        if(val==='ok'){doc.setFillColor(...GREEN);}else if(val==='fail'){doc.setFillColor(...RED);}else{doc.setFillColor(200,200,200);}
+        doc.circle(cx+1,detY-1,1.5,'F');
+        doc.setFont(undefined,'normal');doc.setFontSize(6.5);doc.setTextColor(...GRAY);
+        doc.text(cn,cx+4,detY); cx+=28;
+      });
+      if(sem==='rojo'){
+        y+=rowH+4;
+        doc.setFillColor(255,242,242); doc.roundedRect(lm,y-4,pw,10,1,1,'F');
+        doc.setDrawColor(...RED); doc.setLineWidth(0.3); doc.roundedRect(lm,y-4,pw,10,1,1,'S');
+        doc.setFont(undefined,'bold'); doc.setFontSize(8); doc.setTextColor(...RED);
+        doc.text('ALERTA: Revision exhaustiva realizada — Agente del Ejercito Mexicano a bordo',lm+4,y+1.5);
+        doc.setFont(undefined,'normal'); doc.setFontSize(7); doc.setTextColor(150,50,50);
+        const vids=videoLists[cp.id]||[];
+        doc.text('Videos de evidencia grabados: '+(vids.length||0),lm+4,y+5.5);
+        y+=14;
+      } else { y+=rowH+4; }
+    } else {
+      doc.setFillColor(180,180,180); doc.roundedRect(rm-24,y-4,22,8,2,2,'F');
+      doc.setFont(undefined,'bold'); doc.setFontSize(7.5); doc.setTextColor(...WHITE);
+      doc.text('PENDIENTE',rm-13,y+0.5,'center');
+      y+=rowH+4;
+    }
+  });
+
+  // ── EVIDENCIA EN VIDEO ─────────────────────────────────────────
+  if(y>230){doc.addPage();addHeader(doc,NAVY,GOLD,WHITE);y=20;}
   y+=4;
-  doc.setFont(undefined,'bold');doc.setFontSize(10);doc.setTextColor(10,22,40);doc.text('PUNTOS DE REVISIÓN MILITAR',lm,y);y+=2;
-  doc.setDrawColor(200,168,75);doc.line(lm,y,lm+pw,y);y+=7;
-  CPS.forEach(cp=>{const sem=semaforos[cp.id];const done=cpDone[cp.id];doc.setFont(undefined,'bold');doc.setFontSize(9);doc.setTextColor(10,22,40);doc.text(`${cp.num}. ${cp.name}`,lm,y);const status=done?(sem==='rojo'?'ROJO':'VERDE'):'PENDIENTE';if(done&&sem==='rojo'){doc.setTextColor(198,40,40);}else if(done){doc.setTextColor(46,125,50);}else{doc.setTextColor(150,150,150);}doc.text(status,lm+pw,y,'right');doc.setTextColor(10,22,40);y+=5;doc.setFont(undefined,'normal');doc.setFontSize(8);doc.setTextColor(120,120,120);doc.text(cp.loc,lm+3,y);y+=4;if(horasCp[cp.id]){doc.text('Llegada: '+horasCp[cp.id],lm+3,y);y+=4;}if(obsCp[cp.id]){const obs=doc.splitTextToSize('Obs: '+obsCp[cp.id],pw-6);doc.text(obs,lm+3,y);y+=obs.length*4;}y+=2;if(y>250){doc.addPage();y=15;}});
-  // Videos
-  doc.setFont(undefined,'bold');doc.setFontSize(10);doc.setTextColor(10,22,40);doc.text('EVIDENCIA EN VIDEO',lm,y);y+=2;doc.setDrawColor(200,168,75);doc.line(lm,y,lm+pw,y);y+=7;doc.setFont(undefined,'normal');doc.setFontSize(9);let hv=false;
-  CPS.forEach(cp=>{if((videoLists[cp.id]||[]).length){hv=true;doc.setFont(undefined,'bold');doc.setTextColor(10,22,40);doc.text(cp.name+':',lm,y);y+=5;doc.setFont(undefined,'normal');doc.setTextColor(60,60,60);(videoLists[cp.id]||[]).forEach(vv=>{doc.text('• '+vv,lm+3,y);y+=4;});}});
-  if(!hv){doc.setTextColor(150,150,150);doc.text('Sin videos registrados',lm,y);y+=5;}
-  // Firma
+  doc.setFillColor(...NAVY); doc.rect(lm,y-5,pw,8,'F');
+  doc.setFillColor(...GOLD); doc.rect(lm,y-5,3,8,'F');
+  doc.setFont(undefined,'bold'); doc.setFontSize(9);
+  doc.setTextColor(...WHITE); doc.text('EVIDENCIA EN VIDEO',lm+6,y);
+  y+=10;
+  let hayVideos=false;
+  CPS.forEach(cp=>{
+    const vids=videoLists[cp.id]||[];
+    if(vids.length){
+      hayVideos=true;
+      doc.setFillColor(...LIGHT); doc.rect(lm,y-4,pw,7,'F');
+      doc.setFont(undefined,'bold'); doc.setFontSize(8); doc.setTextColor(...NAVY);
+      doc.text(cp.name+' — '+vids.length+' video(s)',lm+4,y);
+      y+=7;
+      vids.forEach(vv=>{
+        doc.setFont(undefined,'normal'); doc.setFontSize(7.5); doc.setTextColor(...GRAY);
+        doc.text('  • '+vv,lm+6,y); y+=5;
+      });
+    }
+  });
+  if(!hayVideos){
+    doc.setFont(undefined,'italic'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+    doc.text('Sin videos registrados en este reporte.',lm+4,y); y+=8;
+  }
+
+  // ── FIRMA DEL CUSTODIO ────────────────────────────────────────
+  if(y>230){doc.addPage();addHeader(doc,NAVY,GOLD,WHITE);y=20;}
+  y+=6;
+  doc.setFillColor(...NAVY); doc.rect(lm,y-5,pw,8,'F');
+  doc.setFillColor(...GOLD); doc.rect(lm,y-5,3,8,'F');
+  doc.setFont(undefined,'bold'); doc.setFontSize(9);
+  doc.setTextColor(...WHITE); doc.text('FIRMA DEL CUSTODIO RESPONSABLE',lm+6,y);
+  y+=10;
   const fc=document.getElementById('firma-canvas');
-  if(fc&&fCtx){y+=4;doc.setFont(undefined,'bold');doc.setFontSize(10);doc.setTextColor(10,22,40);doc.text('FIRMA DEL CUSTODIO',lm,y);y+=2;doc.setDrawColor(200,168,75);doc.line(lm,y,lm+pw,y);y+=6;try{doc.addImage(fc.toDataURL('image/png'),'PNG',lm,y,90,22);y+=26;}catch(e){}doc.setFont(undefined,'normal');doc.setFontSize(8);doc.setTextColor(10,22,40);doc.text(v.custodioInicial||'—',lm,y);}
-  y=285;doc.setFillColor(10,22,40);doc.rect(0,y-2,210,15,'F');doc.setTextColor(200,168,75);doc.setFontSize(7);doc.text('GSPN • Grupo de Seguridad Privada del Noroeste • '+new Date().toLocaleString('es-MX'),lm,y+4);
-  doc.save('GSPN_Custodia_'+(v.guia||'reporte')+'_'+new Date().toISOString().slice(0,10)+'.pdf');
-  showToast('PDF generado');
+  if(fc&&fCtx){
+    try{
+      doc.setDrawColor(...GOLD); doc.setLineWidth(0.3);
+      doc.roundedRect(lm,y,80,28,1,1,'S');
+      doc.addImage(fc.toDataURL('image/png'),'PNG',lm+2,y+2,76,24);
+    }catch(e){}
+  }
+  doc.setFont(undefined,'bold'); doc.setFontSize(9); doc.setTextColor(...NAVY);
+  doc.text(v.custodioInicial||'—', lm+82, y+10);
+  doc.setFont(undefined,'normal'); doc.setFontSize(7.5); doc.setTextColor(...GRAY);
+  doc.text('Custodio GSPN', lm+82, y+15);
+  doc.text('Punto: '+(userPunto?.name||'—'), lm+82, y+19.5);
+  doc.text('Fecha: '+fecha, lm+82, y+24);
+  y+=36;
+
+  // ── PIE DE PÁGINA ──────────────────────────────────────────────
+  const totalPages=doc.internal.getNumberOfPages();
+  for(let p=1;p<=totalPages;p++){
+    doc.setPage(p);
+    doc.setFillColor(...NAVY); doc.rect(0,282,210,15,'F');
+    doc.setFillColor(...GOLD); doc.rect(0,282,5,15,'F');
+    doc.setFont(undefined,'bold'); doc.setFontSize(7); doc.setTextColor(...GOLD);
+    doc.text('GSPN — Grupo de Seguridad Privada del Noroeste',lm,289);
+    doc.setFont(undefined,'normal'); doc.setTextColor(130,110,50);
+    doc.text('Documento confidencial generado el '+fecha+'  |  Página '+p+' de '+totalPages,lm,293);
+  }
+
+  doc.save('GSPN_Reporte_Custodia_'+(v.guia||'000')+'_'+new Date().toISOString().slice(0,10)+'.pdf');
+  showToast('✅ PDF profesional generado');
 };
+
+function addHeader(doc,NAVY,GOLD,WHITE){
+  doc.setFillColor(...NAVY); doc.rect(0,0,210,12,'F');
+  doc.setFillColor(...GOLD); doc.rect(0,0,5,12,'F');
+  doc.setFont(undefined,'bold'); doc.setFontSize(8); doc.setTextColor(...WHITE);
+  doc.text('GSPN — Reporte de Custodia de Carga (continuación)',10,8);
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.5); doc.line(0,12,210,12);
+}
+
+
+// ── VOZ A TEXTO CON CORRECCIÓN CLAUDE ──────────────────────────
+let activeRecognition = null;
+let activeVoiceCpId = null;
+
+window.toggleVoice = function(cpId) {
+  const btn = document.getElementById('mic-' + cpId);
+  if (!btn) return;
+
+  // Si ya está grabando este punto, detener
+  if (activeVoiceCpId === cpId && activeRecognition) {
+    activeRecognition.stop();
+    return;
+  }
+  // Si estaba grabando otro punto, detenerlo primero
+  if (activeRecognition) activeRecognition.stop();
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    showToast('Tu navegador no soporta dictado por voz');
+    return;
+  }
+
+  const rec = new SpeechRecognition();
+  rec.lang = 'es-MX';
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.maxAlternatives = 1;
+
+  activeRecognition = rec;
+  activeVoiceCpId = cpId;
+
+  btn.className = 'mic-btn recording';
+  btn.textContent = '⏹ Detener';
+
+  let interimText = '';
+
+  rec.onresult = (e) => {
+    let interim = '';
+    let final = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) final += t;
+      else interim += t;
+    }
+    interimText = interim;
+    const ta = document.getElementById('obs-ta-' + cpId);
+    if (ta && interim) ta.placeholder = '🎤 ' + interim + '...';
+    if (final) {
+      const existing = obsCp[cpId] || '';
+      obsCp[cpId] = (existing + ' ' + final).trim();
+      if (ta) ta.value = obsCp[cpId];
+    }
+  };
+
+  rec.onerror = (e) => {
+    showToast('Error de micrófono: ' + e.error);
+    resetMicBtn(cpId);
+  };
+
+  rec.onend = () => {
+    activeRecognition = null;
+    activeVoiceCpId = null;
+    const rawText = obsCp[cpId] || '';
+    if (rawText.trim()) {
+      correctWithClaude(cpId, rawText);
+    } else {
+      resetMicBtn(cpId);
+    }
+  };
+
+  rec.start();
+};
+
+function resetMicBtn(cpId) {
+  const btn = document.getElementById('mic-' + cpId);
+  if (btn) { btn.className='mic-btn'; btn.textContent='🎤 Dictar'; }
+  const loader = document.getElementById('obs-loading-' + cpId);
+  if (loader) loader.style.display='none';
+  const ta = document.getElementById('obs-ta-' + cpId);
+  if (ta) ta.placeholder = 'Escriba o dicte las observaciones del punto...';
+}
+
+async function correctWithClaude(cpId, rawText) {
+  const btn = document.getElementById('mic-' + cpId);
+  const loader = document.getElementById('obs-loading-' + cpId);
+  const ta = document.getElementById('obs-ta-' + cpId);
+  if (btn) { btn.className='mic-btn processing'; btn.textContent='✨ Corrigiendo...'; }
+  if (loader) loader.style.display='block';
+  try {
+    // Worker proxy para evitar CORS con la API de Anthropic
+    const WORKER_URL = 'https://gspn-corrector.racosta123.workers.dev';
+    const resp = await fetch(WORKER_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ text: rawText })
+    });
+    const data = await resp.json();
+    const corrected = data?.corrected || rawText;
+    obsCp[cpId] = corrected;
+    if (ta) { ta.value = corrected; ta.style.borderColor='var(--gold)'; setTimeout(()=>ta.style.borderColor='',2000); }
+    showToast('✨ Texto corregido automáticamente');
+  } catch(e) {
+    showToast('Sin corrección automática — texto guardado tal cual');
+  } finally {
+    resetMicBtn(cpId);
+  }
+}
 
 // TOAST
 window.showToast = function(msg) {
