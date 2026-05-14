@@ -760,141 +760,261 @@ function renderEv() {
   document.getElementById('ev-list').innerHTML = h;
 }
 
-// CAMERA
-let camStream=null, mediaRec=null, recChunks=[], recTimer=null, recSecs=0;
-let currentCamCpId=null, camFacing='environment', dtTimer=null;
+// ── MÓDULO DE CÁMARA Y GRABACIÓN ──────────────────────────────
+let camStream = null;
+let mediaRec = null;
+let recChunks = [];
+let recTimer = null;
+let recSecs = 0;
+let isRecording = false;
+let currentCamCpId = null;
+let camFacing = 'environment';
+let dtTimer = null;
 
+// Abrir cámara para un punto específico
 window.openCamera = function(cpId) {
   currentCamCpId = cpId;
-  const cp = CPS.find(c => c.id===cpId);
-  document.getElementById('cam-modal').classList.add('open');
-  document.getElementById('ov-point').textContent = cp ? cp.name : cpId;
-  document.getElementById('ov-client').textContent = 'Cliente: ' + (window._selectedClient||viajeData?.cliente||'—');
+  isRecording = false;
+  recChunks = [];
+  const cp = CPS.find(c => c.id === cpId);
+  const modal = document.getElementById('cam-modal');
+  modal.classList.add('open');
+  // Overlay info
+  const pt = document.getElementById('ov-point');
+  const cl = document.getElementById('ov-client');
+  if (pt) pt.textContent = cp ? cp.name : cpId;
+  if (cl) cl.textContent = 'Cliente: ' + (viajeData?.cliente || window._selectedClient || '—');
+  // Reiniciar botón
+  resetRecBtn();
+  // Ocultar badge REC
+  const recBadge = document.getElementById('ov-rec');
+  if (recBadge) recBadge.style.display = 'none';
+  // Iniciar reloj overlay
   startDtTimer();
+  // Iniciar stream de cámara
   startStream();
 };
 
+// Cerrar cámara — detiene grabación si está activa
 window.closeCamera = function() {
-  stopRec(false);
-  if (camStream) { camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  if (isRecording) {
+    stopGrabacion(false); // descartar sin guardar
+  }
   clearInterval(dtTimer);
+  if (camStream) {
+    camStream.getTracks().forEach(t => t.stop());
+    camStream = null;
+  }
+  const vid = document.getElementById('cam-video');
+  if (vid) vid.srcObject = null;
   document.getElementById('cam-modal').classList.remove('open');
 };
 
+// Voltear cámara frontal/trasera
+window.flipCamera = function() {
+  camFacing = camFacing === 'environment' ? 'user' : 'environment';
+  startStream();
+};
+
+// Iniciar stream de video
 function startStream() {
-  if (camStream) camStream.getTracks().forEach(t=>t.stop());
-  navigator.mediaDevices.getUserMedia({video:{facingMode:camFacing,width:{ideal:1280},height:{ideal:720}},audio:true})
-    .then(s => { camStream=s; document.getElementById('cam-video').srcObject=s; })
-    .catch(() => { showToast('No se pudo acceder a la cámara'); closeCamera(); });
+  if (camStream) {
+    camStream.getTracks().forEach(t => t.stop());
+    camStream = null;
+  }
+  const constraints = {
+    video: { facingMode: camFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: true
+  };
+  navigator.mediaDevices.getUserMedia(constraints)
+    .then(stream => {
+      camStream = stream;
+      const vid = document.getElementById('cam-video');
+      if (vid) { vid.srcObject = stream; vid.play().catch(()=>{}); }
+    })
+    .catch(err => {
+      showToast('Sin acceso a cámara: ' + err.message);
+      closeCamera();
+    });
 }
 
-window.flipCamera = function() { camFacing = camFacing==='environment'?'user':'environment'; startStream(); };
-
+// Reloj en tiempo real sobre el video
 function startDtTimer() {
   clearInterval(dtTimer);
-  const upd = () => {
+  function tick() {
     const now = new Date();
-    document.getElementById('ov-datetime').textContent = now.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+now.toLocaleTimeString('es-MX');
-  };
-  upd(); dtTimer = setInterval(upd, 1000);
+    const el = document.getElementById('ov-datetime');
+    if (el) el.textContent = now.toLocaleDateString('es-MX', {day:'2-digit',month:'2-digit',year:'numeric'}) + '  ' + now.toLocaleTimeString('es-MX');
+  }
+  tick();
+  dtTimer = setInterval(tick, 1000);
 }
 
+// Botón grande rojo — toggle grabar/detener
 window.toggleRec = function() {
-  const btn = document.getElementById('btn-rec');
-  if (!mediaRec || mediaRec.state==='inactive') {
-    startRec();
-  } else if (mediaRec.state==='recording') {
-    stopRec(true);
+  if (!isRecording) {
+    iniciarGrabacion();
+  } else {
+    detenerYGuardar();
   }
 };
 
+// Detectar mejor formato soportado por el dispositivo
 function getMimeType() {
-  const types = [
+  const tipos = [
+    'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=vp9,opus',
+    'video/webm',
     'video/mp4;codecs=avc1',
     'video/mp4',
-    'video/webm;codecs=vp8,opus',
-    'video/webm;codecs=vp9',
-    'video/webm',
+    ''
   ];
-  for (const t of types) {
-    if (MediaRecorder.isTypeSupported(t)) return t;
+  for (const t of tipos) {
+    if (t === '' || MediaRecorder.isTypeSupported(t)) return t;
   }
   return '';
 }
 
-function startRec() {
-  if (!camStream) { showToast('Sin acceso a cámara'); return; }
-  recChunks = []; recSecs = 0;
-  const mimeType = getMimeType();
-  try {
-    mediaRec = mimeType ? new MediaRecorder(camStream, {mimeType}) : new MediaRecorder(camStream);
-  } catch(e) {
-    showToast('Error al iniciar grabación: ' + e.message);
-    return;
-  }
-  mediaRec.ondataavailable = e => { if(e.data && e.data.size > 0) recChunks.push(e.data); };
-  mediaRec.onstop = saveVideo;
-  mediaRec.onerror = e => { showToast('Error de grabación: ' + e.error); stopRec(false); };
-  mediaRec.start(500);
+function resetRecBtn() {
   const btn = document.getElementById('btn-rec');
-  btn.classList.add('on');
-  btn.textContent = '⏹';
-  btn.style.background = '#333';
-  btn.style.borderColor = '#f00';
-  document.getElementById('ov-rec').style.display = 'flex';
-  recTimer = setInterval(() => {
-    recSecs++;
-    const m = Math.floor(recSecs/60), s = recSecs%60;
-    document.getElementById('ov-rec-time').textContent = m+':'+(s<10?'0':'')+s;
-  }, 1000);
-  showToast('🔴 Grabando...');
-}
-
-function stopRec(save) {
-  clearInterval(recTimer);
-  const btn = document.getElementById('btn-rec');
-  btn.classList.remove('on');
+  if (!btn) return;
   btn.textContent = '⏺';
   btn.style.background = '#f00';
-  btn.style.borderColor = '#fff';
-  document.getElementById('ov-rec').style.display = 'none';
+  btn.style.border = '4px solid #fff';
+  btn.style.width = '68px';
+  btn.style.height = '68px';
+}
+
+// INICIAR grabación
+function iniciarGrabacion() {
+  if (!camStream) { showToast('Espera a que la cámara inicie'); return; }
+  if (isRecording) return;
+  recChunks = [];
+  recSecs = 0;
+  const mimeType = getMimeType();
+  try {
+    const opts = mimeType ? { mimeType } : {};
+    mediaRec = new MediaRecorder(camStream, opts);
+  } catch(e) {
+    try { mediaRec = new MediaRecorder(camStream); }
+    catch(e2) { showToast('Este dispositivo no soporta grabación de video'); return; }
+  }
+  mediaRec.ondataavailable = e => {
+    if (e.data && e.data.size > 0) recChunks.push(e.data);
+  };
+  mediaRec.onstop = procesarVideo;
+  mediaRec.onerror = () => { showToast('Error durante la grabación'); resetGrabacion(); };
+  mediaRec.start(1000); // chunk cada segundo
+  isRecording = true;
+  // UI: botón cambia a STOP
+  const btn = document.getElementById('btn-rec');
+  if (btn) {
+    btn.textContent = '⏹';
+    btn.style.background = '#1a1a1a';
+    btn.style.border = '4px solid #f00';
+  }
+  // Mostrar badge REC con contador
+  const badge = document.getElementById('ov-rec');
+  if (badge) badge.style.display = 'flex';
+  recTimer = setInterval(() => {
+    recSecs++;
+    const m = Math.floor(recSecs / 60);
+    const s = recSecs % 60;
+    const el = document.getElementById('ov-rec-time');
+    if (el) el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+  }, 1000);
+  showToast('🔴 Grabando — toca ⏹ para detener');
+}
+
+// DETENER y guardar
+function detenerYGuardar() {
+  if (!isRecording) return;
+  clearInterval(recTimer);
+  isRecording = false;
+  // Ocultar badge REC
+  const badge = document.getElementById('ov-rec');
+  if (badge) badge.style.display = 'none';
+  resetRecBtn();
+  showToast('⏳ Procesando video...');
   if (mediaRec && mediaRec.state !== 'inactive') {
-    if (!save) { mediaRec.ondataavailable = () => {}; mediaRec.onstop = () => {}; }
+    mediaRec.stop(); // dispara onstop → procesarVideo
+  } else {
+    procesarVideo();
+  }
+}
+
+// DESCARTAR sin guardar
+function resetGrabacion() {
+  clearInterval(recTimer);
+  isRecording = false;
+  recChunks = [];
+  resetRecBtn();
+  const badge = document.getElementById('ov-rec');
+  if (badge) badge.style.display = 'none';
+}
+
+// Parar grabación SIN guardar (al cerrar)
+function stopGrabacion(save) {
+  clearInterval(recTimer);
+  isRecording = false;
+  const badge = document.getElementById('ov-rec');
+  if (badge) badge.style.display = 'none';
+  resetRecBtn();
+  if (mediaRec && mediaRec.state !== 'inactive') {
+    if (!save) {
+      mediaRec.ondataavailable = () => {};
+      mediaRec.onstop = () => {};
+    }
     mediaRec.stop();
   }
 }
 
-function saveVideo() {
-  if (!recChunks.length) { showToast('Sin datos grabados'); return; }
+// Procesar y descargar el video grabado
+function procesarVideo() {
+  if (!recChunks || recChunks.length === 0) {
+    showToast('No se capturaron datos de video');
+    return;
+  }
   const mimeType = (mediaRec && mediaRec.mimeType) ? mediaRec.mimeType : 'video/webm';
   const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-  const blob = new Blob(recChunks, {type: mimeType});
-  const now = new Date();
-  const fname = 'GSPN_'+currentCamCpId+'_'+now.toISOString().slice(0,19).replace(/:/g,'-')+'.'+ext;
+  const blob = new Blob(recChunks, { type: mimeType });
+  const ahora = new Date();
+  const cpNombre = CPS.find(c => c.id === currentCamCpId)?.name || currentCamCpId;
+  const fname = 'GSPN_' + currentCamCpId + '_' + ahora.toISOString().slice(0,19).replace(/[:.]/g,'-') + '.' + ext;
+  // Intentar descarga
   const url = URL.createObjectURL(blob);
-  // iOS Safari no soporta <a download> — detectar y usar window.open como fallback
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   if (isIOS) {
-    // En iOS abrir el video en nueva pestaña para que el usuario lo guarde manualmente
-    const newTab = window.open(url, '_blank');
-    if (!newTab) {
-      showToast('Permite ventanas emergentes para guardar el video');
-    } else {
-      showToast('📹 Video listo — Mantén presionado para guardar');
-    }
-    setTimeout(()=>URL.revokeObjectURL(url), 30000);
+    // iOS: abrir en nueva pestaña, el usuario guarda con "Mantener presionado"
+    const tab = window.open(url, '_blank');
+    if (!tab) showToast('Activa ventanas emergentes para guardar');
+    else showToast('📹 Mantén presionado el video para guardar');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   } else {
-    const a = document.createElement('a'); a.href=url; a.download=fname;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(()=>URL.revokeObjectURL(url), 5000);
+    // Android / Desktop: descarga directa
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 8000);
+    showToast('✅ Video descargado: ' + fname);
   }
-  if (!videoLists[currentCamCpId]) videoLists[currentCamCpId]=[];
-  const label = now.toLocaleString('es-MX') + ' — ' + (CPS.find(c=>c.id===currentCamCpId)?.name||currentCamCpId);
-  videoLists[currentCamCpId].push(label);
-  const vl = document.getElementById('vl-'+currentCamCpId);
-  if (vl) { const d=document.createElement('div'); d.className='vid-item'; d.textContent='📹 '+label; vl.appendChild(d); }
-  showToast('✅ Video guardado — ' + fname);
-  closeCamera();
+  // Registrar en la lista de evidencias
+  if (!videoLists[currentCamCpId]) videoLists[currentCamCpId] = [];
+  const etiqueta = ahora.toLocaleString('es-MX') + ' — ' + cpNombre;
+  videoLists[currentCamCpId].push(etiqueta);
+  // Actualizar UI si la lista está visible
+  const vl = document.getElementById('vl-' + currentCamCpId);
+  if (vl) {
+    const d = document.createElement('div');
+    d.className = 'vid-item';
+    d.textContent = '📹 ' + etiqueta;
+    vl.appendChild(d);
+  }
+  // Cerrar cámara
+  setTimeout(() => closeCamera(), 500);
 }
 
 
