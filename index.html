@@ -727,11 +727,14 @@ let currentUser = null;
 let userPunto = null;
 let currentViajeId = null;
 let viajeData = null;
+Object.defineProperty(window, 'viajeData', {get: () => viajeData, set: v => { viajeData = v; }});
 let checkResults = {};
 let semaforos = {};
 let horasCp = {};
 let obsCp = {};
 let videoLists = {desengano:[], querobabi:[], sonoita:[], centinela:[]};
+window.videoLists = videoLists; // expose to camera script
+// Keep window.videoLists in sync
 let cpDone = {desengano:false, querobabi:false, sonoita:false, centinela:false};
 let unsubViajes = null;
 
