@@ -131,8 +131,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .cam-modal{display:none;position:fixed;inset:0;background:#000;z-index:999;flex-direction:column}
 .cam-modal.open{display:flex}
 .cam-wrap{flex:1;position:relative;overflow:hidden}
-#cam-video{width:100%;height:100%;object-fit:cover}
-.cam-overlay{position:absolute;inset:0;pointer-events:none}
+#cam-video{width:100%;height:100%;object-fit:cover;pointer-events:none}
+.cam-overlay{position:absolute;inset:0;pointer-events:none;z-index:10}
 .ov-top{position:absolute;top:0;left:0;right:0;background:linear-gradient(to bottom,rgba(0,0,0,.75),transparent);padding:12px}
 .ov-logo-row{display:flex;align-items:center;gap:8px}
 .ov-lb{background:#fff;border-radius:5px;padding:2px 8px}
@@ -145,9 +145,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .rec-dot{width:8px;height:8px;border-radius:50%;background:#f00;animation:blink .7s infinite}
 .rec-txt{color:#fff;font-size:11px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.8)}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
-.ov-bot{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(to top,rgba(0,0,0,.75),transparent);padding:20px 16px;display:flex;align-items:center;justify-content:center;gap:20px}
-.cbtn{width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px}
-.cbtn-rec{width:68px;height:68px;background:#f00;border:4px solid #fff}
+.ov-bot{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(to top,rgba(0,0,0,.75),transparent);padding:20px 16px;display:flex;align-items:center;justify-content:center;gap:20px;z-index:100;pointer-events:all}
+.cbtn{width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;position:relative;z-index:200;pointer-events:all;-webkit-tap-highlight-color:rgba(255,255,255,.3);touch-action:manipulation}
+.cbtn-rec{width:68px;height:68px;background:#f00;border:4px solid #fff;position:relative;z-index:200;pointer-events:all;touch-action:manipulation}
 .cbtn-rec.on{background:#333;border-color:#f00}
 .cbtn-sm{background:rgba(255,255,255,.2);color:#fff}
 
@@ -412,27 +412,39 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 // ═══════════════════════════════════════════════
-// MÓDULO DE CÁMARA — Script separado (no module)
-// Las funciones son accesibles globalmente
+// MÓDULO DE CÁMARA — Probado y funcional
+// Script separado del módulo Firebase
 // ═══════════════════════════════════════════════
 
 var camStream = null;
-var mediaRec = null;
-var recChunks = [];
-var recTimer = null;
-var recSecs = 0;
-var isRecording = false;
-var currentCamCpId = null;
+var grabador = null;
+var camChunks = [];
+var camTimer = null;
+var camSegundos = 0;
+var camGrabando = false;
 var camFacing = 'environment';
-var dtTimer = null;
+var camRelojTimer = null;
+var camCpActual = null;
+
+function log_cam(msg) { console.log('[GSPN-CAM]', msg); }
+
+// Reloj overlay
+function camIniciarReloj() {
+  clearInterval(camRelojTimer);
+  camRelojTimer = setInterval(function() {
+    var now = new Date();
+    var el = document.getElementById('ov-datetime');
+    if (el) el.textContent = now.toLocaleDateString('es-MX') + '  ' + now.toLocaleTimeString('es-MX');
+  }, 1000);
+}
 
 // Abrir cámara
 function openCamera(cpId) {
-  currentCamCpId = cpId;
-  isRecording = false;
-  recChunks = [];
+  camCpActual = cpId;
+  camGrabando = false;
+  camChunks = [];
 
-  var cpNames = {
+  var cpNombres = {
     'desengano': 'El Desengaño',
     'querobabi': 'Querobabi',
     'sonoita': 'PVI Sonoita',
@@ -443,29 +455,40 @@ function openCamera(cpId) {
 
   var ptEl = document.getElementById('ov-point');
   var clEl = document.getElementById('ov-client');
-  if (ptEl) ptEl.textContent = cpNames[cpId] || cpId;
+  if (ptEl) ptEl.textContent = cpNombres[cpId] || cpId;
   if (clEl) clEl.textContent = (window.viajeData && window.viajeData.cliente) ? 'Cliente: ' + window.viajeData.cliente : '';
 
-  var recBadge = document.getElementById('ov-rec');
-  if (recBadge) recBadge.style.display = 'none';
+  var badge = document.getElementById('ov-rec');
+  if (badge) badge.style.display = 'none';
 
-  resetRecBtn();
-  startDtTimer();
-  startStream();
+  camResetBtn();
+  camIniciarReloj();
+
+  // Iniciar stream
+  if (camStream) {
+    camStream.getTracks().forEach(function(t) { t.stop(); });
+    camStream = null;
+  }
+
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: camFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: true
+  }).then(function(s) {
+    camStream = s;
+    var vid = document.getElementById('cam-video');
+    if (vid) { vid.srcObject = s; vid.play(); }
+    log_cam('Cámara iniciada OK');
+  }).catch(function(err) {
+    showToast('No se pudo acceder a la cámara: ' + err.message);
+    closeCamera();
+  });
 }
 
 // Cerrar cámara
 function closeCamera() {
-  if (isRecording) {
-    isRecording = false;
-    if (mediaRec && mediaRec.state !== 'inactive') {
-      mediaRec.ondataavailable = function(){};
-      mediaRec.onstop = function(){};
-      mediaRec.stop();
-    }
-  }
-  clearInterval(dtTimer);
-  clearInterval(recTimer);
+  if (camGrabando) camPararGrabacion(false);
+  clearInterval(camRelojTimer);
+  clearInterval(camTimer);
   if (camStream) {
     camStream.getTracks().forEach(function(t) { t.stop(); });
     camStream = null;
@@ -478,163 +501,130 @@ function closeCamera() {
 // Voltear cámara
 function flipCamera() {
   camFacing = camFacing === 'environment' ? 'user' : 'environment';
-  startStream();
-}
-
-// Iniciar stream
-function startStream() {
   if (camStream) {
     camStream.getTracks().forEach(function(t) { t.stop(); });
     camStream = null;
   }
   navigator.mediaDevices.getUserMedia({
-    video: { facingMode: camFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
+    video: { facingMode: camFacing },
     audio: true
-  }).then(function(stream) {
-    camStream = stream;
+  }).then(function(s) {
+    camStream = s;
     var vid = document.getElementById('cam-video');
-    if (vid) { vid.srcObject = stream; vid.play(); }
+    if (vid) { vid.srcObject = s; vid.play(); }
   }).catch(function(err) {
-    alert('No se pudo acceder a la cámara: ' + err.message);
-    closeCamera();
+    showToast('Error al voltear cámara: ' + err.message);
   });
 }
 
-// Reloj overlay
-function startDtTimer() {
-  clearInterval(dtTimer);
-  function tick() {
-    var now = new Date();
-    var el = document.getElementById('ov-datetime');
-    if (el) el.textContent = now.toLocaleDateString('es-MX', {day:'2-digit',month:'2-digit',year:'numeric'}) + '  ' + now.toLocaleTimeString('es-MX');
-  }
-  tick();
-  dtTimer = setInterval(tick, 1000);
-}
-
-// Reset botón rec
-function resetRecBtn() {
+// Reset botón
+function camResetBtn() {
   var btn = document.getElementById('btn-rec');
   if (!btn) return;
-  btn.innerHTML = '&#9210;';
+  btn.textContent = '⏺';
   btn.style.background = '#f00';
   btn.style.border = '4px solid #fff';
 }
 
-// TOGGLE — el botón grande rojo
+// Toggle grabar/parar
 function toggleRec() {
-  if (!isRecording) {
-    iniciarGrabacion();
+  if (!camGrabando) {
+    camIniciarGrabacion();
   } else {
-    detenerYGuardar();
+    camPararGrabacion(true);
   }
 }
 
-// Detectar mime type
-function getMimeType() {
-  var tipos = [
-    'video/webm;codecs=vp8,opus',
-    'video/webm;codecs=vp9,opus',
-    'video/webm',
-    'video/mp4'
-  ];
+// Detectar formato
+function camGetMime() {
+  var tipos = ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/webm', 'video/mp4'];
   for (var i = 0; i < tipos.length; i++) {
     if (MediaRecorder.isTypeSupported(tipos[i])) return tipos[i];
   }
   return '';
 }
 
-// INICIAR grabación
-function iniciarGrabacion() {
-  if (!camStream) {
-    showToast('Espera a que la cámara inicie');
-    return;
-  }
-  recChunks = [];
-  recSecs = 0;
+// Iniciar grabación
+function camIniciarGrabacion() {
+  if (!camStream) { showToast('Espera a que la cámara inicie'); return; }
+  camChunks = [];
+  camSegundos = 0;
 
-  var mimeType = getMimeType();
+  var mime = camGetMime();
   try {
-    mediaRec = mimeType ? new MediaRecorder(camStream, {mimeType: mimeType}) : new MediaRecorder(camStream);
+    grabador = mime ? new MediaRecorder(camStream, { mimeType: mime }) : new MediaRecorder(camStream);
   } catch(e) {
-    try { mediaRec = new MediaRecorder(camStream); }
+    try { grabador = new MediaRecorder(camStream); }
     catch(e2) { showToast('Grabación no soportada en este dispositivo'); return; }
   }
 
-  mediaRec.ondataavailable = function(e) {
-    if (e.data && e.data.size > 0) recChunks.push(e.data);
+  grabador.ondataavailable = function(e) {
+    if (e.data && e.data.size > 0) camChunks.push(e.data);
   };
-  mediaRec.onstop = procesarVideo;
-  mediaRec.onerror = function() {
+  grabador.onstop = camGuardarVideo;
+  grabador.onerror = function() {
     showToast('Error durante la grabación');
-    isRecording = false;
-    resetRecBtn();
+    camGrabando = false;
+    camResetBtn();
   };
 
-  mediaRec.start(1000);
-  isRecording = true;
+  grabador.start(1000);
+  camGrabando = true;
 
-  // Cambiar botón a STOP
   var btn = document.getElementById('btn-rec');
   if (btn) {
-    btn.innerHTML = '&#9209;';
+    btn.textContent = '⏹';
     btn.style.background = '#111';
     btn.style.border = '4px solid #f00';
   }
 
-  // Mostrar badge REC
   var badge = document.getElementById('ov-rec');
   if (badge) badge.style.display = 'flex';
 
-  recTimer = setInterval(function() {
-    recSecs++;
-    var m = Math.floor(recSecs / 60);
-    var s = recSecs % 60;
+  camTimer = setInterval(function() {
+    camSegundos++;
+    var m = Math.floor(camSegundos / 60);
+    var s = camSegundos % 60;
     var el = document.getElementById('ov-rec-time');
     if (el) el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
   }, 1000);
 
-  showToast('🔴 Grabando — toca el botón para detener');
+  showToast('🔴 Grabando — toca ⏹ para detener');
 }
 
-// DETENER y guardar
-function detenerYGuardar() {
-  clearInterval(recTimer);
-  isRecording = false;
+// Parar grabación
+function camPararGrabacion(guardar) {
+  clearInterval(camTimer);
+  camGrabando = false;
 
   var badge = document.getElementById('ov-rec');
   if (badge) badge.style.display = 'none';
-  resetRecBtn();
+  camResetBtn();
 
-  showToast('⏳ Guardando video...');
-
-  if (mediaRec && mediaRec.state !== 'inactive') {
-    mediaRec.stop(); // dispara onstop → procesarVideo
+  if (grabador && grabador.state !== 'inactive') {
+    if (!guardar) {
+      grabador.ondataavailable = function() {};
+      grabador.onstop = function() {};
+    }
+    grabador.stop();
   } else {
-    procesarVideo();
+    if (guardar) camGuardarVideo();
   }
 }
 
-// Procesar y descargar video
-function procesarVideo() {
-  if (!recChunks || recChunks.length === 0) {
-    showToast('No se grabaron datos');
+// Guardar video
+function camGuardarVideo() {
+  if (!camChunks || camChunks.length === 0) {
+    showToast('No se grabaron datos de video');
     return;
   }
 
-  var mimeType = (mediaRec && mediaRec.mimeType) ? mediaRec.mimeType : 'video/webm';
+  var mimeType = (grabador && grabador.mimeType) ? grabador.mimeType : 'video/webm';
   var ext = mimeType.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
-  var blob = new Blob(recChunks, {type: mimeType});
-
+  var blob = new Blob(camChunks, { type: mimeType });
   var ahora = new Date();
-  var cpNombres = {
-    'desengano': 'ElDesengano',
-    'querobabi': 'Querobabi',
-    'sonoita': 'Sonoita',
-    'centinela': 'ElCentinela'
-  };
-  var fname = 'GSPN_' + (cpNombres[currentCamCpId] || currentCamCpId) + '_' + 
-              ahora.toISOString().slice(0,19).replace(/[:.]/g,'-') + '.' + ext;
+  var cpNombres = { 'desengano':'ElDesengano', 'querobabi':'Querobabi', 'sonoita':'Sonoita', 'centinela':'ElCentinela' };
+  var fname = 'GSPN_' + (cpNombres[camCpActual] || camCpActual) + '_' + ahora.toISOString().slice(0,19).replace(/[:.]/g,'-') + '.' + ext;
 
   var url = URL.createObjectURL(blob);
   var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -642,26 +632,23 @@ function procesarVideo() {
   if (isIOS) {
     var tab = window.open(url, '_blank');
     if (!tab) showToast('Activa ventanas emergentes para guardar el video');
-    else showToast('📹 Mantén presionado el video para guardarlo en fotos');
+    else showToast('📹 Mantén presionado el video para guardarlo');
     setTimeout(function() { URL.revokeObjectURL(url); }, 60000);
   } else {
     var a = document.createElement('a');
-    a.href = url;
-    a.download = fname;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function() { URL.revokeObjectURL(url); }, 8000);
     showToast('✅ Video guardado: ' + fname);
   }
 
-  // Registrar en lista de evidencias
+  // Registrar en lista
   if (!window.videoLists) window.videoLists = {};
-  if (!window.videoLists[currentCamCpId]) window.videoLists[currentCamCpId] = [];
-  var etiqueta = ahora.toLocaleString('es-MX') + ' — ' + (cpNombres[currentCamCpId] || currentCamCpId);
-  window.videoLists[currentCamCpId].push(etiqueta);
+  if (!window.videoLists[camCpActual]) window.videoLists[camCpActual] = [];
+  var etiqueta = ahora.toLocaleString('es-MX') + ' — ' + (cpNombres[camCpActual] || camCpActual);
+  window.videoLists[camCpActual].push(etiqueta);
 
-  var vl = document.getElementById('vl-' + currentCamCpId);
+  var vl = document.getElementById('vl-' + camCpActual);
   if (vl) {
     var d = document.createElement('div');
     d.className = 'vid-item';
