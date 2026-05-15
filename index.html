@@ -435,8 +435,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 // ═══════════════════════════════════════════════
-// MÓDULO DE CÁMARA — Probado y funcional
-// Script separado del módulo Firebase
+// MÓDULO DE CÁMARA CON OVERLAY QUEMADO EN VIDEO
+// Usa canvas para grabar video + overlay juntos
 // ═══════════════════════════════════════════════
 
 var camStream = null;
@@ -448,18 +448,17 @@ var camGrabando = false;
 var camFacing = 'environment';
 var camRelojTimer = null;
 var camCpActual = null;
+var canvasStream = null;
+var animFrame = null;
+
+var CAM_NOMBRES = {
+  'desengano': 'El Desengaño',
+  'querobabi': 'Querobabi',
+  'sonoita': 'PVI Sonoita',
+  'centinela': 'El Centinela'
+};
 
 function log_cam(msg) { console.log('[GSPN-CAM]', msg); }
-
-// Reloj overlay
-function camIniciarReloj() {
-  clearInterval(camRelojTimer);
-  camRelojTimer = setInterval(function() {
-    var now = new Date();
-    var el = document.getElementById('ov-datetime');
-    if (el) el.textContent = now.toLocaleDateString('es-MX') + '  ' + now.toLocaleTimeString('es-MX');
-  }, 1000);
-}
 
 // Abrir cámara
 function openCamera(cpId) {
@@ -467,18 +466,11 @@ function openCamera(cpId) {
   camGrabando = false;
   camChunks = [];
 
-  var cpNombres = {
-    'desengano': 'El Desengaño',
-    'querobabi': 'Querobabi',
-    'sonoita': 'PVI Sonoita',
-    'centinela': 'El Centinela'
-  };
-
-  document.getElementById('cam-modal').style.display='flex';
+  document.getElementById('cam-modal').style.display = 'flex';
 
   var ptEl = document.getElementById('ov-point');
   var clEl = document.getElementById('ov-client');
-  if (ptEl) ptEl.textContent = cpNombres[cpId] || cpId;
+  if (ptEl) ptEl.textContent = CAM_NOMBRES[cpId] || cpId;
   if (clEl) clEl.textContent = (window.viajeData && window.viajeData.cliente) ? 'Cliente: ' + window.viajeData.cliente : '';
 
   var badge = document.getElementById('ov-rec');
@@ -487,7 +479,6 @@ function openCamera(cpId) {
   camResetBtn();
   camIniciarReloj();
 
-  // Iniciar stream
   if (camStream) {
     camStream.getTracks().forEach(function(t) { t.stop(); });
     camStream = null;
@@ -512,13 +503,14 @@ function closeCamera() {
   if (camGrabando) camPararGrabacion(false);
   clearInterval(camRelojTimer);
   clearInterval(camTimer);
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
   if (camStream) {
     camStream.getTracks().forEach(function(t) { t.stop(); });
     camStream = null;
   }
   var vid = document.getElementById('cam-video');
   if (vid) vid.srcObject = null;
-  document.getElementById('cam-modal').style.display='none';
+  document.getElementById('cam-modal').style.display = 'none';
 }
 
 // Voltear cámara
@@ -536,8 +528,18 @@ function flipCamera() {
     var vid = document.getElementById('cam-video');
     if (vid) { vid.srcObject = s; vid.play(); }
   }).catch(function(err) {
-    showToast('Error al voltear cámara: ' + err.message);
+    showToast('Error al voltear: ' + err.message);
   });
+}
+
+// Reloj overlay
+function camIniciarReloj() {
+  clearInterval(camRelojTimer);
+  camRelojTimer = setInterval(function() {
+    var now = new Date();
+    var el = document.getElementById('ov-datetime');
+    if (el) el.textContent = now.toLocaleDateString('es-MX') + '  ' + now.toLocaleTimeString('es-MX');
+  }, 1000);
 }
 
 // Reset botón
@@ -558,7 +560,7 @@ function toggleRec() {
   }
 }
 
-// Detectar formato
+// Detectar mime type
 function camGetMime() {
   var tipos = ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/webm', 'video/mp4'];
   for (var i = 0; i < tipos.length; i++) {
@@ -567,18 +569,152 @@ function camGetMime() {
   return '';
 }
 
-// Iniciar grabación
+// Dibujar frame en canvas con overlay quemado
+function dibujarFrame(canvas, ctx, vid, cpId, cliente) {
+  if (!vid || vid.readyState < 2) return;
+  var w = canvas.width;
+  var h = canvas.height;
+
+  // 1. Dibujar video
+  ctx.drawImage(vid, 0, 0, w, h);
+
+  // 2. Gradiente superior (fondo del overlay)
+  var gradTop = ctx.createLinearGradient(0, 0, 0, h * 0.25);
+  gradTop.addColorStop(0, 'rgba(0,0,0,0.75)');
+  gradTop.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gradTop;
+  ctx.fillRect(0, 0, w, h * 0.25);
+
+  // 3. Gradiente inferior (fondo botones)
+  var gradBot = ctx.createLinearGradient(0, h * 0.75, 0, h);
+  gradBot.addColorStop(0, 'rgba(0,0,0,0)');
+  gradBot.addColorStop(1, 'rgba(0,0,0,0.75)');
+  ctx.fillStyle = gradBot;
+  ctx.fillRect(0, h * 0.75, w, h * 0.25);
+
+  var pad = w * 0.025;
+  var now = new Date();
+
+  // 4. Caja blanca del logo GSPN
+  var logoX = pad;
+  var logoY = pad;
+  var logoW = w * 0.18;
+  var logoH = h * 0.1;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.roundRect(logoX, logoY, logoW, logoH, 4);
+  ctx.fill();
+
+  // Texto GSPN
+  ctx.fillStyle = '#0a1628';
+  ctx.font = 'bold ' + (w * 0.035) + 'px Arial';
+  ctx.fillText('GSPN', logoX + logoW * 0.1, logoY + logoH * 0.55);
+  ctx.font = (w * 0.012) + 'px Arial';
+  ctx.fillStyle = '#444444';
+  ctx.fillText('SEG. PRIVADA DEL NOROESTE', logoX + logoW * 0.06, logoY + logoH * 0.85);
+
+  // 5. Fecha y hora
+  var textX = logoX + logoW + pad * 0.8;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold ' + (w * 0.028) + 'px Arial';
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 4;
+  ctx.fillText(
+    now.toLocaleDateString('es-MX', {day:'2-digit', month:'2-digit', year:'numeric'}) + 
+    '  ' + now.toLocaleTimeString('es-MX'),
+    textX, logoY + logoH * 0.45
+  );
+
+  // 6. Punto de revisión
+  ctx.fillStyle = '#c8a84b';
+  ctx.font = 'bold ' + (w * 0.022) + 'px Arial';
+  ctx.fillText(CAM_NOMBRES[cpId] || cpId, textX, logoY + logoH * 0.85);
+
+  // 7. Cliente
+  if (cliente) {
+    ctx.fillStyle = '#cccccc';
+    ctx.font = (w * 0.018) + 'px Arial';
+    ctx.fillText('Cliente: ' + cliente, textX, logoY + logoH * 1.25);
+  }
+
+  // 8. Badge REC (solo si está grabando)
+  if (camGrabando) {
+    var recX = w - pad - w * 0.15;
+    var recY = pad;
+    var recW = w * 0.14;
+    var recH = h * 0.06;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.beginPath();
+    ctx.roundRect(recX, recY, recW, recH, 20);
+    ctx.fill();
+
+    // Punto rojo parpadeante
+    var blink = Math.floor(Date.now() / 500) % 2 === 0;
+    if (blink) {
+      ctx.fillStyle = '#ff0000';
+      ctx.beginPath();
+      ctx.arc(recX + recW * 0.2, recY + recH * 0.5, recH * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Texto REC + tiempo
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold ' + (w * 0.022) + 'px Arial';
+    ctx.shadowBlur = 0;
+    var m = Math.floor(camSegundos / 60);
+    var s = camSegundos % 60;
+    ctx.fillText('REC ' + m + ':' + (s < 10 ? '0' : '') + s, recX + recW * 0.32, recY + recH * 0.68);
+  }
+
+  ctx.shadowBlur = 0;
+}
+
+// Iniciar grabación CON canvas overlay
 function camIniciarGrabacion() {
   if (!camStream) { showToast('Espera a que la cámara inicie'); return; }
+
   camChunks = [];
   camSegundos = 0;
 
+  var vid = document.getElementById('cam-video');
+  var vt = camStream.getVideoTracks()[0];
+  var settings = vt ? vt.getSettings() : { width: 1280, height: 720 };
+  var W = settings.width || 1280;
+  var H = settings.height || 720;
+
+  // Crear canvas oculto del mismo tamaño que el video
+  var canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  var ctx = canvas.getContext('2d');
+  var cpId = camCpActual;
+  var cliente = (window.viajeData && window.viajeData.cliente) ? window.viajeData.cliente : '';
+
+  // Animar canvas a 30fps
+  function dibujar() {
+    dibujarFrame(canvas, ctx, vid, cpId, cliente);
+    animFrame = requestAnimationFrame(dibujar);
+  }
+  dibujar();
+
+  // Capturar canvas como stream de video
+  var canvasVideoStream = canvas.captureStream(30);
+
+  // Agregar audio del stream original
+  var audioTracks = camStream.getAudioTracks();
+  audioTracks.forEach(function(track) {
+    canvasVideoStream.addTrack(track);
+  });
+
+  canvasStream = canvasVideoStream;
+
+  // Grabar el canvas stream (con overlay quemado)
   var mime = camGetMime();
   try {
-    grabador = mime ? new MediaRecorder(camStream, { mimeType: mime }) : new MediaRecorder(camStream);
+    grabador = mime ? new MediaRecorder(canvasStream, { mimeType: mime }) : new MediaRecorder(canvasStream);
   } catch(e) {
-    try { grabador = new MediaRecorder(camStream); }
-    catch(e2) { showToast('Grabación no soportada en este dispositivo'); return; }
+    try { grabador = new MediaRecorder(canvasStream); }
+    catch(e2) { showToast('Grabación no soportada'); return; }
   }
 
   grabador.ondataavailable = function(e) {
@@ -612,13 +748,14 @@ function camIniciarGrabacion() {
     if (el) el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
   }, 1000);
 
-  showToast('🔴 Grabando — toca ⏹ para detener');
+  showToast('🔴 Grabando con overlay GSPN — toca ⏹ para detener');
 }
 
 // Parar grabación
 function camPararGrabacion(guardar) {
   clearInterval(camTimer);
   camGrabando = false;
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
 
   var badge = document.getElementById('ov-rec');
   if (badge) badge.style.display = 'none';
@@ -646,8 +783,8 @@ function camGuardarVideo() {
   var ext = mimeType.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
   var blob = new Blob(camChunks, { type: mimeType });
   var ahora = new Date();
-  var cpNombres = { 'desengano':'ElDesengano', 'querobabi':'Querobabi', 'sonoita':'Sonoita', 'centinela':'ElCentinela' };
-  var fname = 'GSPN_' + (cpNombres[camCpActual] || camCpActual) + '_' + ahora.toISOString().slice(0,19).replace(/[:.]/g,'-') + '.' + ext;
+  var cpCorto = { 'desengano':'ElDesengano', 'querobabi':'Querobabi', 'sonoita':'Sonoita', 'centinela':'ElCentinela' };
+  var fname = 'GSPN_' + (cpCorto[camCpActual] || camCpActual) + '_' + ahora.toISOString().slice(0,19).replace(/[:.]/g,'-') + '.' + ext;
 
   var url = URL.createObjectURL(blob);
   var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -668,8 +805,11 @@ function camGuardarVideo() {
   // Registrar en lista
   if (!window.videoLists) window.videoLists = {};
   if (!window.videoLists[camCpActual]) window.videoLists[camCpActual] = [];
-  var etiqueta = ahora.toLocaleString('es-MX') + ' — ' + (cpNombres[camCpActual] || camCpActual);
+  var etiqueta = ahora.toLocaleString('es-MX') + ' — ' + (CAM_NOMBRES[camCpActual] || camCpActual);
   window.videoLists[camCpActual].push(etiqueta);
+  if (videoLists && videoLists[camCpActual] !== undefined) {
+    videoLists[camCpActual].push(etiqueta);
+  }
 
   var vl = document.getElementById('vl-' + camCpActual);
   if (vl) {
