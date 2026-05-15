@@ -207,7 +207,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div style="font-size:7px;color:#555;letter-spacing:.4px">GRUPO DE SEGURIDAD PRIVADA DEL NOROESTE</div>
   </div>
   <div class="spinner"></div>
-  <div class="loading-txt">Iniciando sistema...</div>
+  <div class="loading-txt" id="loading-txt">Iniciando sistema...</div>
+  <button onclick="document.getElementById('loading').style.display='none';document.getElementById('login-screen').style.display='block';"
+    style="display:none;margin-top:16px;padding:10px 24px;background:#c8a84b;color:#0a1628;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer"
+    id="loading-skip">Ir al login →</button>
 </div>
 
 <!-- LOGIN -->
@@ -745,10 +748,21 @@ window._userPunto = null;
 
 // AUTH STATE
 // Timeout fallback: if Firebase takes too long, show login anyway
+// Mostrar login en 4 segundos si Firebase no responde
 const authTimeout = setTimeout(() => {
+  console.log('Firebase timeout - mostrando login');
   document.getElementById('loading').style.display = 'none';
   document.getElementById('login-screen').style.display = 'block';
-}, 8000);
+}, 4000);
+
+// También mostrar login si Firebase falla completamente
+window.addEventListener('error', function(e) {
+  if (e.message && e.message.includes('Firebase')) {
+    clearTimeout(authTimeout);
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('login-screen').style.display = 'block';
+  }
+});
 
 onAuthStateChanged(auth, async (user) => {
   clearTimeout(authTimeout);
@@ -1167,12 +1181,21 @@ window.showToast = function(msg) {
   setTimeout(()=>t.classList.remove('show'),2800);
 };
 
-// PWA - desregistrar service workers viejos y no registrar nuevo
+// PWA - desregistrar service workers viejos
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then(function(regs) {
     regs.forEach(function(reg) { reg.unregister(); });
   });
 }
+// Mostrar botón de skip después de 5 segundos
+setTimeout(function() {
+  var skip = document.getElementById('loading-skip');
+  var txt = document.getElementById('loading-txt');
+  if (skip && document.getElementById('loading').style.display !== 'none') {
+    if (txt) txt.textContent = 'Conectando con servidor...';
+    skip.style.display = 'block';
+  }
+}, 5000);
 
 // ENTER KEY LOGIN
 document.addEventListener('keydown', e => { if(e.key==='Enter' && document.getElementById('login-screen').style.display!=='none') doLogin(); });
