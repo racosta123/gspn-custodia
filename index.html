@@ -396,10 +396,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="rec-dot"></div>
         <span class="rec-txt">REC <span id="ov-rec-time">0:00</span></span>
       </div>
-      <div class="ov-bot">
-        <button class="cbtn cbtn-sm" id="btn-close-cam">✕</button>
-        <button class="cbtn cbtn-rec" id="btn-rec">⏺</button>
-        <button class="cbtn cbtn-sm" id="btn-flip-cam">🔄</button>
+      <div class="ov-bot" style="position:absolute;bottom:0;left:0;right:0;z-index:999;pointer-events:all;display:flex;align-items:center;justify-content:center;gap:20px;padding:20px;background:linear-gradient(to top,rgba(0,0,0,.8),transparent)">
+        <button class="cbtn cbtn-sm" id="btn-close-cam" onclick="closeCamera()" style="position:relative;z-index:9999;pointer-events:all;touch-action:manipulation">✕</button>
+        <button class="cbtn cbtn-rec" id="btn-rec" onclick="toggleRec()" style="position:relative;z-index:9999;pointer-events:all;touch-action:manipulation">⏺</button>
+        <button class="cbtn cbtn-sm" id="btn-flip-cam" onclick="flipCamera()" style="position:relative;z-index:9999;pointer-events:all;touch-action:manipulation">🔄</button>
       </div>
     </div>
   </div>
