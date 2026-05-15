@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GSPN — Prueba de Cámara</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a1628; color: #fff; font-family: sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+
+h2 { color: #c8a84b; margin-bottom: 20px; font-size: 18px; text-align: center; }
+
+/* STATUS LOG */
+#log { background: #111; border: 1px solid #333; border-radius: 8px; padding: 12px; width: 100%; max-width: 400px; margin-bottom: 20px; min-height: 80px; font-size: 13px; line-height: 1.8; }
+#log p { margin: 0; }
+#log p.ok { color: #00c853; }
+#log p.err { color: #f44336; }
+#log p.info { color: #c8a84b; }
+
+/* CAMERA AREA */
+#cam-wrap {
+  width: 100%;
+  max-width: 400px;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  aspect-ratio: 16/9;
+}
+
+#cam-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none; /* VIDEO NO CAPTURA TOQUES */
+}
+
+/* OVERLAY INFO */
+#cam-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  background: linear-gradient(to bottom, rgba(0,0,0,.7), transparent);
+  padding: 10px 12px;
+  pointer-events: none; /* OVERLAY NO CAPTURA TOQUES */
+}
+#ov-time { font-size: 13px; font-weight: 700; color: #fff; }
+#ov-punto { font-size: 11px; color: #c8a84b; }
+
+/* REC BADGE */
+#rec-badge {
+  display: none;
+  position: absolute;
+  top: 10px; right: 10px;
+  background: rgba(0,0,0,.5);
+  border-radius: 20px;
+  padding: 3px 10px;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+  z-index: 50;
+}
+#rec-badge.show { display: flex; }
+.rec-dot { width: 8px; height: 8px; border-radius: 50%; background: #f00; animation: blink .7s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+#rec-time { font-size: 12px; color: #fff; font-weight: 700; }
+
+/* BOTONES — z-index alto, pointer-events:all */
+#cam-buttons {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,.8), transparent);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  z-index: 100;           /* POR ENCIMA DEL VIDEO */
+  pointer-events: all;    /* CAPTURA TODOS LOS TOQUES */
+}
+
+.btn-cam {
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  z-index: 200;
+  pointer-events: all;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(255,255,255,.3);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#btn-cerrar {
+  width: 48px; height: 48px;
+  background: rgba(255,255,255,.2);
+  color: #fff;
+  font-size: 18px;
+}
+
+#btn-rec {
+  width: 68px; height: 68px;
+  background: #f00;
+  border: 4px solid #fff !important;
+  font-size: 28px;
+  transition: all .2s;
+}
+#btn-rec.grabando {
+  background: #111;
+  border-color: #f00 !important;
+}
+
+#btn-voltear {
+  width: 48px; height: 48px;
+  background: rgba(255,255,255,.2);
+  color: #fff;
+  font-size: 20px;
+}
+
+/* BOTÓN ABRIR CÁMARA */
+#btn-abrir {
+  background: #c8a84b;
+  color: #0a1628;
+  border: none;
+  border-radius: 10px;
+  padding: 14px 32px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-bottom: 16px;
+  touch-action: manipulation;
+}
+
+/* LISTA VIDEOS */
+#video-lista { width: 100%; max-width: 400px; margin-top: 16px; }
+.vid-item { background: #1a3a1a; border: 1px solid #2e7d32; border-radius: 8px; padding: 8px 12px; margin-top: 8px; font-size: 12px; color: #a5d6a7; }
+</style>
+</head>
+<body>
+
+<h2>🎥 GSPN — Prueba de Cámara</h2>
+
+<div id="log">
+  <p class="info">Listo. Toca "Abrir Cámara" para comenzar.</p>
+</div>
+
+<button id="btn-abrir" onclick="abrirCamara()">📷 Abrir Cámara</button>
+
+<div id="cam-wrap" style="display:none">
+  <video id="cam-video" autoplay playsinline muted></video>
+
+  <div id="cam-overlay">
+    <div id="ov-time">--:--:--</div>
+    <div id="ov-punto">El Desengaño — Prueba</div>
+  </div>
+
+  <div id="rec-badge">
+    <div class="rec-dot"></div>
+    <span id="rec-time">0:00</span>
+  </div>
+
+  <div id="cam-buttons">
+    <button class="btn-cam" id="btn-cerrar" onclick="cerrarCamara()">✕</button>
+    <button class="btn-cam" id="btn-rec" onclick="toggleGrabacion()">⏺</button>
+    <button class="btn-cam" id="btn-voltear" onclick="voltearCamara()">🔄</button>
+  </div>
+</div>
+
+<div id="video-lista"></div>
+
+<script>
+// ── VARIABLES ──────────────────────────────
+var stream = null;
+var grabador = null;
+var chunks = [];
+var timer = null;
+var segundos = 0;
+var grabando = false;
+var camara = 'environment';
+var relojTimer = null;
+
+// ── LOG ────────────────────────────────────
+function log(msg, tipo) {
+  var div = document.getElementById('log');
+  var p = document.createElement('p');
+  p.className = tipo || 'info';
+  p.textContent = msg;
+  div.appendChild(p);
+  div.scrollTop = div.scrollHeight;
+  console.log('[GSPN]', msg);
+}
+
+// ── RELOJ OVERLAY ──────────────────────────
+function iniciarReloj() {
+  clearInterval(relojTimer);
+  relojTimer = setInterval(function() {
+    var now = new Date();
+    document.getElementById('ov-time').textContent = 
+      now.toLocaleDateString('es-MX') + '  ' + now.toLocaleTimeString('es-MX');
+  }, 1000);
+}
+
+// ── ABRIR CÁMARA ───────────────────────────
+function abrirCamara() {
+  log('Solicitando acceso a cámara...', 'info');
+  document.getElementById('btn-abrir').style.display = 'none';
+  document.getElementById('cam-wrap').style.display = 'block';
+
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: camara, width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: true
+  }).then(function(s) {
+    stream = s;
+    var vid = document.getElementById('cam-video');
+    vid.srcObject = s;
+    vid.play();
+    iniciarReloj();
+    log('✅ Cámara iniciada correctamente', 'ok');
+    log('Toca el botón ⏺ rojo para grabar', 'info');
+  }).catch(function(err) {
+    log('❌ Error: ' + err.message, 'err');
+    cerrarCamara();
+  });
+}
+
+// ── CERRAR CÁMARA ──────────────────────────
+function cerrarCamara() {
+  if (grabando) pararGrabacion(false);
+  clearInterval(relojTimer);
+  if (stream) {
+    stream.getTracks().forEach(function(t) { t.stop(); });
+    stream = null;
+  }
+  document.getElementById('cam-video').srcObject = null;
+  document.getElementById('cam-wrap').style.display = 'none';
+  document.getElementById('btn-abrir').style.display = 'block';
+  log('Cámara cerrada', 'info');
+}
+
+// ── VOLTEAR CÁMARA ─────────────────────────
+function voltearCamara() {
+  camara = camara === 'environment' ? 'user' : 'environment';
+  log('Volteando a cámara ' + (camara === 'user' ? 'frontal' : 'trasera') + '...', 'info');
+  if (stream) {
+    stream.getTracks().forEach(function(t) { t.stop(); });
+    stream = null;
+  }
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: camara },
+    audio: true
+  }).then(function(s) {
+    stream = s;
+    document.getElementById('cam-video').srcObject = s;
+    log('✅ Cámara volteada', 'ok');
+  }).catch(function(err) {
+    log('❌ Error al voltear: ' + err.message, 'err');
+  });
+}
+
+// ── TOGGLE GRABAR/PARAR ────────────────────
+function toggleGrabacion() {
+  log('toggleGrabacion() ejecutado — grabando=' + grabando, 'info');
+  if (!grabando) {
+    iniciarGrabacion();
+  } else {
+    pararGrabacion(true);
+  }
+}
+
+// ── INICIAR GRABACIÓN ──────────────────────
+function iniciarGrabacion() {
+  if (!stream) { log('❌ No hay stream activo', 'err'); return; }
+
+  chunks = [];
+  segundos = 0;
+
+  // Detectar formato soportado
+  var formatos = ['video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
+  var formato = '';
+  for (var i = 0; i < formatos.length; i++) {
+    if (MediaRecorder.isTypeSupported(formatos[i])) {
+      formato = formatos[i];
+      break;
+    }
+  }
+  log('Formato de video: ' + (formato || 'default'), 'info');
+
+  try {
+    grabador = formato ? new MediaRecorder(stream, { mimeType: formato }) : new MediaRecorder(stream);
+  } catch(e) {
+    log('❌ Error creando grabador: ' + e.message, 'err');
+    return;
+  }
+
+  grabador.ondataavailable = function(e) {
+    if (e.data && e.data.size > 0) {
+      chunks.push(e.data);
+      log('Chunk recibido: ' + e.data.size + ' bytes', 'info');
+    }
+  };
+
+  grabador.onstop = function() {
+    log('Grabador detenido — procesando...', 'info');
+    guardarVideo();
+  };
+
+  grabador.onerror = function(e) {
+    log('❌ Error en grabador: ' + e.error, 'err');
+    grabando = false;
+    resetBoton();
+  };
+
+  grabador.start(1000);
+  grabando = true;
+
+  // UI
+  var btn = document.getElementById('btn-rec');
+  btn.textContent = '⏹';
+  btn.classList.add('grabando');
+
+  document.getElementById('rec-badge').classList.add('show');
+
+  timer = setInterval(function() {
+    segundos++;
+    var m = Math.floor(segundos / 60);
+    var s = segundos % 60;
+    document.getElementById('rec-time').textContent = m + ':' + (s < 10 ? '0' : '') + s;
+  }, 1000);
+
+  log('🔴 Grabando... toca ⏹ para detener', 'ok');
+}
+
+// ── PARAR GRABACIÓN ────────────────────────
+function pararGrabacion(guardar) {
+  clearInterval(timer);
+  grabando = false;
+  document.getElementById('rec-badge').classList.remove('show');
+  resetBoton();
+
+  if (grabador && grabador.state !== 'inactive') {
+    if (!guardar) {
+      grabador.ondataavailable = function() {};
+      grabador.onstop = function() {};
+    }
+    grabador.stop();
+    log('Deteniendo grabación...', 'info');
+  } else {
+    if (guardar) guardarVideo();
+  }
+}
+
+function resetBoton() {
+  var btn = document.getElementById('btn-rec');
+  btn.textContent = '⏺';
+  btn.classList.remove('grabando');
+}
+
+// ── GUARDAR VIDEO ──────────────────────────
+function guardarVideo() {
+  if (!chunks || chunks.length === 0) {
+    log('❌ Sin datos para guardar', 'err');
+    return;
+  }
+
+  var mimeType = (grabador && grabador.mimeType) ? grabador.mimeType : 'video/webm';
+  var ext = mimeType.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
+  var blob = new Blob(chunks, { type: mimeType });
+  var ahora = new Date();
+  var nombre = 'GSPN_Prueba_' + ahora.toISOString().slice(0,19).replace(/[:.]/g,'-') + '.' + ext;
+
+  log('Video listo: ' + nombre + ' (' + Math.round(blob.size/1024) + ' KB)', 'ok');
+
+  var url = URL.createObjectURL(blob);
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  if (isIOS) {
+    var tab = window.open(url, '_blank');
+    if (!tab) log('⚠️ Activa ventanas emergentes para guardar', 'err');
+    else log('📹 iOS: mantén presionado el video para guardar', 'ok');
+    setTimeout(function() { URL.revokeObjectURL(url); }, 60000);
+  } else {
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = nombre;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 8000);
+    log('✅ Video descargado: ' + nombre, 'ok');
+  }
+
+  // Mostrar en lista
+  var lista = document.getElementById('video-lista');
+  var item = document.createElement('div');
+  item.className = 'vid-item';
+  item.textContent = '📹 ' + nombre + ' — ' + Math.round(blob.size/1024) + ' KB';
+  lista.appendChild(item);
+
+  chunks = [];
+}
+</script>
+</body>
+</html>
