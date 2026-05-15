@@ -1164,8 +1164,12 @@ window.showToast = function(msg) {
   setTimeout(()=>t.classList.remove('show'),2800);
 };
 
-// PWA
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+// PWA - desregistrar service workers viejos y no registrar nuevo
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(regs) {
+    regs.forEach(function(reg) { reg.unregister(); });
+  });
+}
 
 // ENTER KEY LOGIN
 document.addEventListener('keydown', e => { if(e.key==='Enter' && document.getElementById('login-screen').style.display!=='none') doLogin(); });
